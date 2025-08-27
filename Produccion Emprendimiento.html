@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel de Control de Produccion</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .chart-container { position: relative; width: 100%; max-width: 800px; margin-left: auto; margin-right: auto; height: 300px; max-height: 400px; }
+        @media (min-width: 768px) { .chart-container { height: 350px; } }
+        .modal { transition: opacity 0.25s ease; }
+        .modal-content { transition: transform 0.25s ease; }
+        .table-cell { white-space: nowrap; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+    <div id="app" class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+
+        <header class="mb-8">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                <h1 class="text-3xl font-bold text-gray-900">Panel de Control de Produccion</h1>
+                <div class="flex space-x-2 mt-4 sm:mt-0">
+                    <button id="nav-dashboard" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Dashboard</button>
+                    <button id="nav-prices" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Mantenimiento</button>
+                </div>
+            </div>
+            <p id="header-subtitle" class="text-gray-600 mt-1">Visualiza y gestiona las novedades diarias de materiales y Produccion.</p>
+        </header>
+
+        <main>
+            <!-- Dashboard Section -->
+            <section id="dashboard-section">
+                <!-- KPIs Section -->
+                <section id="kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Produccion Total (KG)</h3>
+                        <p id="kpi-total-kg" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Bolsas Producidas</h3>
+                        <p id="kpi-bags-produced" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Bolsas Entregadas</h3>
+                        <p id="kpi-bags-delivered" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Stock Estimado (Bolsas)</h3>
+                        <p id="kpi-stock-bags" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                </section>
+                
+                <section id="kpis-row-2" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Valor de Produccion ($)</h3>
+                        <p id="kpi-total-value" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Material Ingresado (KG)</h3>
+                        <p id="kpi-material-in" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Cuentas por Cobrar ($)</h3>
+                        <p id="kpi-pending-payment" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Stock Est. Policarbonato (KG)</h3>
+                        <p id="kpi-stock-molido" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                </section>
+                
+                <!-- Expanded Production KPIs Section -->
+                <section id="kpis-row-3" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Produccion Pellets (KG)</h3>
+                        <p id="kpi-pellets-kg" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Produccion Molido (KG)</h3>
+                        <p id="kpi-molido-kg" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                        <h3 class="text-sm font-medium text-gray-500">Produccion Total ($)</h3>
+                        <p id="kpi-total-value-produced" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                    </div>
+                </section>
+
+                <!-- Filters and Charts Section -->
+                <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                        <h2 class="text-xl font-bold text-gray-900 mb-4 sm:mb-0">Análisis de Novedades</h2>
+                        <div id="time-filters" class="flex flex-wrap items-center space-x-2 space-y-2 sm:space-y-0">
+                            <button data-filter="week" class="filter-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Últimos 7 días</button>
+                            <button data-filter="month" class="filter-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Este Mes</button>
+                            <button data-filter="month-specific" class="filter-btn bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Por Mes</button>
+                            <button data-filter="all" class="filter-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Todos</button>
+                            <select id="month-select" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium"></select>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-lg font-semibold text-center mb-2">Produccion (KG) por Producto</h3>
+                            <p class="text-sm text-gray-500 text-center mb-4">Compara la cantidad total producida de cada línea de producto.</p>
+                            <div class="chart-container h-80 md:h-96">
+                                <canvas id="productionByProductChart"></canvas>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-center mb-2">Valor ($) por Producto</h3>
+                            <p class="text-sm text-gray-500 text-center mb-4">Distribución del valor monetario generado por cada producto.</p>
+                            <div class="chart-container h-80 md:h-96">
+                                <canvas id="valueByProductChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Data Table Section -->
+                <section id="data-table-section" class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-900">Registro de Novedades</h2>
+                        <div class="flex items-center space-x-2 mt-2 sm:mt-0">
+                            <button id="refresh-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Refrescar</button>
+                            <input type="file" id="csv-file" class="hidden" accept=".csv">
+                            <button id="import-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Importar CSV</button>
+                            <button id="export-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Exportar CSV</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto/Línea</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">KG Netos</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Bolsas (25kg)</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">$ en Pesos</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Indicador</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="novedades-table-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+            
+            <!-- Prices and Notifications Maintenance Section -->
+            <section id="prices-section" class="hidden">
+                <!-- Prices Section -->
+                <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold text-gray-900 mb-4">Mantenimiento de Precios y Factores</h2>
+                    <p class="text-sm text-gray-600 mb-6">Aquí puedes actualizar los valores de conversión para los productos. Los cambios afectarán los cálculos futuros.</p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Factor de Conversión (KG)</th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Precio por KG ($)</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prices-table-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- General Configuration Section -->
+                <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                    <h2 class="text-xl font-bold text-gray-900 mb-4">Configuración General</h2>
+                    <p class="text-sm text-gray-600 mb-6">Puedes ajustar el peso de las bolsas de Pellets desde aquí. (Peso de la bolsa sin incluir la tara)</p>
+                    <div class="flex items-center space-x-4">
+                        <label for="bolsa-peso" class="block text-sm font-medium text-gray-700">Peso de la Bolsa de Pellets (Kg)</label>
+                        <input type="number" id="bolsa-peso" step="0.01" class="w-24 px-3 py-2 border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                        <button id="save-bolsa-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">Guardar</button>
+                    </div>
+                </section>
+
+                <!-- Notification Audit Section -->
+                <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-200 mb-8">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-xl font-bold text-gray-900">Auditoría de Acciones</h2>
+                        <button id="clear-audit-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Limpiar Historial</button>
+                    </div>
+                    <p class="text-sm text-gray-600 mb-4">Registro de todas las acciones de creación, edición y eliminación de registros.</p>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asunto</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalles</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table-body" class="bg-white divide-y divide-gray-200">
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </section>
+        </main>
+    </div>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm p-8 transform -translate-y-10">
+            <h2 class="text-xl font-bold mb-4">Confirmar Eliminación</h2>
+            <p class="text-gray-700 mb-6">¿Estás seguro de que deseas eliminar este registro? Esta acción no se puede deshacer.</p>
+            <div class="flex justify-end space-x-4">
+                <button id="confirm-cancel-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium">Cancelar</button>
+                <button id="confirm-delete-btn" class="bg-red-600 text-white px-4 py-2 rounded-lg font-medium">Eliminar</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add/Edit Modal (for novedades) -->
+    <div id="novedad-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-lg p-8 transform -translate-y-10">
+            <h2 id="modal-title" class="text-2xl font-bold mb-6">Nueva Novedad</h2>
+            <form id="novedad-form">
+                <input type="hidden" id="novedad-id">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    <div>
+                        <label for="fecha" class="block text-sm font-medium text-gray-700">Fecha</label>
+                        <input type="date" id="fecha" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="tipo" class="block text-sm font-medium text-gray-700">Tipo</label>
+                        <select id="tipo" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="producto" class="block text-sm font-medium text-gray-700">Producto o Línea</label>
+                        <select id="producto" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></select>
+                    </div>
+                    <div>
+                        <label for="cantidad" class="block text-sm font-medium text-gray-700">Cantidad / Kg / Pesos</label>
+                        <input type="number" id="cantidad" step="0.01" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label for="operarios" class="block text-sm font-medium text-gray-700">Operarios</label>
+                        <input type="number" id="operarios" value="0" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+                    <div class="sm:col-span-2">
+                        <label for="comentarios" class="block text-sm font-medium text-gray-700">Comentarios</label>
+                        <textarea id="comentarios" rows="3" class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+                </div>
+                <div class="mt-8 flex justify-end space-x-4">
+                    <button type="button" id="novedad-cancel-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Price Modal -->
+    <div id="price-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm p-8 transform -translate-y-10">
+            <h2 class="text-2xl font-bold mb-6">Editar Producto</h2>
+            <form id="price-form">
+                <input type="hidden" id="price-product-name">
+                <div class="mb-4">
+                    <label for="price-kg-factor" class="block text-sm font-medium text-gray-700">Factor de Conversión (KG)</label>
+                    <input type="number" id="price-kg-factor" step="0.01" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mb-4">
+                    <label for="price-price-per-kg" class="block text-sm font-medium text-gray-700">Precio por KG ($)</label>
+                    <input type="number" id="price-price-per-kg" step="0.01" required class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div class="mt-8 flex justify-end space-x-4">
+                    <button type="button" id="price-cancel-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium">Cancelar</button>
+                    <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Password Prompt Modal -->
+    <div id="password-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-sm p-8 transform -translate-y-10">
+            <h2 class="text-xl font-bold mb-4">Ingresar Contraseña</h2>
+            <p class="text-gray-700 mb-6">Esta acción requiere una clave de seguridad. La clave es `1234`.</p>
+            <input type="password" id="password-input" class="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 mb-4" placeholder="Clave de seguridad">
+            <div class="flex justify-end space-x-4">
+                <button id="password-cancel-btn" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium">Cancelar</button>
+                <button id="password-confirm-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Message Modal (for success/error messages) -->
+    <div id="message-modal" class="modal fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4 hidden opacity-0">
+        <div class="modal-content bg-white rounded-xl shadow-2xl w-full max-w-md p-8 transform -translate-y-10">
+            <h2 id="message-title" class="text-2xl font-bold mb-4">Mensaje</h2>
+            <p id="message-text" class="text-gray-700 mb-6"></p>
+            <div class="flex justify-end">
+                <button id="message-ok-btn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Button -->
+    <button id="add-btn" class="fixed bottom-8 right-8 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+        </svg>
+    </button>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const initialData = [
+                { id: 1, fecha: '2025-08-01', tipo: 'Produccion Diurna', producto: 'Pellets', cantidad: 550, operarios: 4, comentarios: 'Produccion estándar.' },
+                { id: 2, fecha: '2025-08-01', tipo: 'Produccion Diurna', producto: 'Molido Policarbonato', cantidad: 10, operarios: 2, comentarios: '10 bandejas.' },
+                { id: 3, fecha: '2025-08-02', tipo: 'Novedades Diurna', producto: 'Bidones 20L', cantidad: 200, operarios: 1, comentarios: 'Recepción de material.' },
+                { id: 4, fecha: '2025-08-03', tipo: 'Egreso Produccion', producto: 'Egreso Pellets', cantidad: 500, operarios: 1, comentarios: 'Entrega a cliente A.' },
+                { id: 5, fecha: '2025-08-03', tipo: 'Pendiente de Cobro', producto: 'Pendiente de Cobro', cantidad: 20000, operarios: 0, comentarios: 'Cliente A.' },
+                { id: 6, fecha: '2025-08-10', tipo: 'Cobro de Pendiente', producto: 'Cobro de Pendiente', cantidad: 20000, operarios: 0, comentarios: 'Saldo de cliente A.' },
+                { id: 7, fecha: '2025-08-12', tipo: 'Produccion Nocturna', producto: 'Pellets', cantidad: 480, operarios: 3, comentarios: '' },
+                { id: 8, fecha: '2025-08-15', tipo: 'Produccion Diurna', producto: 'Molido Policarbonato', cantidad: 15, operarios: 2, comentarios: '15 bandejas.' },
+                { id: 9, fecha: '2025-07-20', tipo: 'Produccion Diurna', producto: 'Pellets', cantidad: 600, operarios: 4, comentarios: 'Inicio de mes anterior' },
+                { id: 10, fecha: '2025-07-25', tipo: 'Produccion Diurna', producto: 'Bidones 12L', cantidad: 100, operarios: 1, comentarios: 'Produccion Julio' },
+            ];
+
+            const initialProductConfig = {
+                'Pellets': { kgFactor: 1, pricePerKg: 275 },
+                'Molido Policarbonato': { kgFactor: 75, pricePerKg: 200 },
+                'Bidones 12L': { kgFactor: 0.5, pricePerKg: 250 },
+                'Bidones 20L': { kgFactor: 0.85, pricePerKg: 300 },
+                'Tapas': { kgFactor: 1, pricePerKg: 150 },
+                'Egreso Pellets': { kgFactor: 1, pricePerKg: 275 },
+                'Egreso Molido Policarbonato': { kgFactor: 75, pricePerKg: 200 },
+                'Pendiente de Cobro': { kgFactor: 0, pricePerKg: 1 },
+                'Cobro de Pendiente': { kgFactor: 0, pricePerKg: 1 },
+            };
+            
+            let novedades = JSON.parse(localStorage.getItem('novedades')) || initialData;
+            let productConfig = JSON.parse(localStorage.getItem('productConfig')) || initialProductConfig;
+            let auditLog = JSON.parse(localStorage.getItem('auditLog')) || [];
+            let bolsaPeso = parseFloat(localStorage.getItem('bolsaPeso')) || 25; // Default weight for pellets bag
+            let currentFilter = 'month-specific'; 
+            let selectedMonth = new Date().toISOString().slice(0, 7);
+            let productionByProductChart, valueByProductChart;
+            let deleteId = null;
+            let deleteType = null; // 'novedad' or 'audit'
+
+            const AUDIT_PASSWORD = '1234';
+
+            const options = {
+                tipo: {
+                    'Produccion Diurna': ['Pellets', 'Molido Policarbonato'],
+                    'Produccion Nocturna': ['Pellets', 'Molido Policarbonato'],
+                    'Novedades Diurna': ['Bidones 12L', 'Bidones 20L', 'Tapas'],
+                    'Novedades Nocturna': ['Bidones 12L', 'Bidones 20L', 'Tapas'],
+                    'Egreso Produccion': ['Egreso Pellets', 'Egreso Molido Policarbonato'],
+                    'Pendiente de Cobro': ['Pendiente de Cobro'],
+                    'Cobro de Pendiente': ['Cobro de Pendiente'],
+                }
+            };
+
+            const formatCurrency = (value) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
+            const formatNumber = (value) => new Intl.NumberFormat('es-AR').format(value);
+            const getMonthName = (monthIndex) => ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][monthIndex];
+
+            const showMessage = (title, message) => {
+                document.getElementById('message-title').textContent = title;
+                document.getElementById('message-text').innerHTML = message;
+                openModal(document.getElementById('message-modal'));
+            };
+
+            const calculateFields = (novedad) => {
+                let kgNetos = 0;
+                let valor = 0;
+                let indicador = 'N';
+                let bolsas = 0;
+
+                const { tipo, producto, cantidad } = novedad;
+                const config = productConfig[producto] || { kgFactor: 0, pricePerKg: 0 };
+                
+                if (producto.includes('Pellets') && tipo.includes('Produccion')) {
+                    kgNetos = cantidad;
+                    bolsas = kgNetos / bolsaPeso;
+                } else if (producto.includes('Egreso Pellets')) {
+                    // Egreso de Pellets
+                    kgNetos = cantidad;
+                    bolsas = kgNetos / bolsaPeso;
+                } else {
+                    kgNetos = cantidad * config.kgFactor;
+                    bolsas = 0; 
+                }
+                
+                if (tipo === 'Pendiente de Cobro' || tipo === 'Cobro de Pendiente') {
+                    valor = cantidad;
+                } else {
+                    valor = kgNetos * config.pricePerKg;
+                }
+                
+                if (tipo.includes('Produccion')) indicador = 'P';
+                if (tipo.includes('Egreso')) indicador = 'E';
+
+                return { ...novedad, kgNetos, valor, indicador, bolsas };
+            };
+
+            const saveNovedades = () => {
+                localStorage.setItem('novedades', JSON.stringify(novedades));
+            };
+
+            const saveProductConfig = () => {
+                localStorage.setItem('productConfig', JSON.stringify(productConfig));
+            };
+            
+            const saveBolsaPeso = () => {
+                localStorage.setItem('bolsaPeso', bolsaPeso);
+            };
+
+            const saveAuditLog = () => {
+                localStorage.setItem('auditLog', JSON.stringify(auditLog));
+            };
+
+            const logAction = (type, details) => {
+                const timestamp = new Date().toISOString();
+                let subject;
+                let logDetails = { ...details };
+                
+                // Add calculated fields to the log details for a complete record
+                if (type === 'new' || type === 'delete') {
+                    const processedDetails = calculateFields(details);
+                    logDetails = { ...logDetails, kgNetos: processedDetails.kgNetos, valor: processedDetails.valor, indicador: processedDetails.indicador, bolsas: processedDetails.bolsas };
+                } else if (type === 'edit') {
+                    subject = `Registro modificado`;
+                    const processedOld = calculateFields(details.old);
+                    const processedNew = calculateFields(details.new);
+                    logDetails = {
+                        old: { ...details.old, kgNetos: processedOld.kgNetos, valor: processedOld.valor, indicador: processedOld.indicador, bolsas: processedOld.bolsas },
+                        new: { ...details.new, kgNetos: processedNew.kgNetos, valor: processedNew.valor, indicador: processedNew.indicador, bolsas: processedNew.bolsas }
+                    };
+                }
+
+                if (type === 'new') subject = `Registro añadido`;
+                if (type === 'delete') subject = `Registro eliminado`;
+                
+                auditLog.unshift({
+                    id: Date.now(),
+                    timestamp,
+                    type,
+                    subject,
+                    details: logDetails
+                });
+                saveAuditLog();
+            };
+
+            const renderNovedadesTable = (data) => {
+                const tableBody = document.getElementById('novedades-table-body');
+                tableBody.innerHTML = data.map(n => {
+                    const processed = calculateFields(n);
+                    const bolsasDisplay = processed.bolsas ? formatNumber(processed.bolsas.toFixed(2)) : '-';
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 table-cell">${new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                            <td class="px-4 py-3 table-cell">${n.tipo}</td>
+                            <td class="px-4 py-3 table-cell">${n.producto}</td>
+                            <td class="px-4 py-3 table-cell text-right">${formatNumber(processed.kgNetos)}</td>
+                            <td class="px-4 py-3 table-cell text-right">${bolsasDisplay}</td>
+                            <td class="px-4 py-3 table-cell text-right">${formatCurrency(processed.valor)}</td>
+                            <td class="px-4 py-3 table-cell text-center">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${processed.indicador === 'P' ? 'bg-green-100 text-green-800' : processed.indicador === 'E' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">
+                                    ${processed.indicador}
+                                </span>
+                            </td>
+                            <td class="px-4 py-3 table-cell text-center">
+                                <button class="edit-btn text-blue-600 hover:text-blue-900" data-id="${n.id}">Editar</button>
+                                <button class="delete-btn text-red-600 hover:text-red-900 ml-2" data-id="${n.id}">Eliminar</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            };
+
+            const renderPriceTable = () => {
+                const tableBody = document.getElementById('prices-table-body');
+                const productsToDisplay = Object.keys(productConfig).filter(p => !p.startsWith('Egreso') && !p.includes('Cobro'));
+                tableBody.innerHTML = productsToDisplay.map(p => {
+                    const config = productConfig[p];
+                    return `
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-4 py-3 table-cell">${p}</td>
+                            <td class="px-4 py-3 table-cell text-right">${config.kgFactor}</td>
+                            <td class="px-4 py-3 table-cell text-right">${formatCurrency(config.pricePerKg)}</td>
+                            <td class="px-4 py-3 table-cell text-center">
+                                <button class="edit-price-btn text-blue-600 hover:text-blue-900" data-product="${p}">Editar</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            };
+
+            const renderAuditTable = () => {
+                const auditTableBody = document.getElementById('audit-table-body');
+                auditTableBody.innerHTML = auditLog.map(log => `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 table-cell">${new Date(log.timestamp).toLocaleString('es-AR')}</td>
+                        <td class="px-4 py-3 table-cell">${log.type}</td>
+                        <td class="px-4 py-3 table-cell">${log.subject}</td>
+                        <td class="px-4 py-3 table-cell overflow-hidden max-w-xs">
+                            <pre class="text-xs p-1 bg-gray-100 rounded-md overflow-x-auto">${JSON.stringify(log.details, null, 2)}</pre>
+                        </td>
+                        <td class="px-4 py-3 table-cell text-center">
+                            <button class="delete-audit-btn text-red-600 hover:text-red-900" data-id="${log.id}">Eliminar</button>
+                        </td>
+                    </tr>
+                `).join('');
+            };
+
+            const renderKPIs = (data) => {
+                const processedData = data.map(calculateFields);
+                const totalKg = processedData.filter(n => n.tipo.includes('Produccion')).reduce((sum, n) => sum + n.kgNetos, 0);
+                const totalValue = processedData.filter(n => n.tipo.includes('Produccion')).reduce((sum, n) => sum + n.valor, 0);
+                const materialIn = processedData.filter(n => n.tipo.includes('Novedades')).reduce((sum, n) => sum + n.kgNetos, 0);
+                const pendingPayment = processedData.reduce((sum, n) => {
+                    if (n.tipo === 'Pendiente de Cobro') return sum + n.valor;
+                    if (n.tipo === 'Cobro de Pendiente') return sum - n.valor;
+                    return sum;
+                }, 0);
+                
+                const bagsProduced = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Pellets').reduce((sum, n) => sum + n.bolsas, 0);
+                const bagsDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Pellets').reduce((sum, n) => sum + (n.cantidad / bolsaPeso), 0);
+                const stockBags = bagsProduced - bagsDelivered;
+                
+                const totalKgPellets = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Pellets').reduce((sum, n) => sum + n.kgNetos, 0);
+                const totalKgMolido = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+                const molidoProduced = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+                const molidoDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+                const molidoStock = molidoProduced - molidoDelivered;
+
+
+                document.getElementById('kpi-total-kg').textContent = formatNumber(totalKg);
+                document.getElementById('kpi-total-value').textContent = formatCurrency(totalValue);
+                document.getElementById('kpi-material-in').textContent = formatNumber(materialIn);
+                document.getElementById('kpi-pending-payment').textContent = formatCurrency(pendingPayment);
+                
+                document.getElementById('kpi-bags-produced').textContent = formatNumber(bagsProduced.toFixed(2));
+                document.getElementById('kpi-bags-delivered').textContent = formatNumber(bagsDelivered.toFixed(2));
+                document.getElementById('kpi-stock-bags').textContent = formatNumber(stockBags.toFixed(2));
+
+                // New KPIs
+                document.getElementById('kpi-stock-molido').textContent = formatNumber(molidoStock.toFixed(2));
+                document.getElementById('kpi-pellets-kg').textContent = formatNumber(totalKgPellets);
+                document.getElementById('kpi-molido-kg').textContent = formatNumber(totalKgMolido);
+                document.getElementById('kpi-total-value-produced').textContent = formatCurrency(totalValue);
+            };
+
+            const renderCharts = (data) => {
+                const processedData = data.map(calculateFields).filter(n => n.tipo.includes('Produccion'));
+                
+                const productionByProduct = processedData.reduce((acc, n) => {
+                    acc[n.producto] = (acc[n.producto] || 0) + n.kgNetos;
+                    return acc;
+                }, {});
+
+                const valueByProduct = processedData.reduce((acc, n) => {
+                    acc[n.producto] = (acc[n.producto] || 0) + n.valor;
+                    return acc;
+                }, {});
+
+                const chartColors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#d946ef', '#f43f5e'];
+
+                const prodCtx = document.getElementById('productionByProductChart').getContext('2d');
+                if (productionByProductChart) productionByProductChart.destroy();
+                productionByProductChart = new Chart(prodCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: Object.keys(productionByProduct),
+                        datasets: [{
+                            label: 'Produccion (KG)',
+                            data: Object.values(productionByProduct),
+                            backgroundColor: chartColors,
+                            borderColor: chartColors.map(c => c + 'B3'),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+                });
+
+                const valueCtx = document.getElementById('valueByProductChart').getContext('2d');
+                if (valueByProductChart) valueByProductChart.destroy();
+                valueByProductChart = new Chart(valueCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(valueByProduct),
+                        datasets: [{
+                            data: Object.values(valueByProduct),
+                            backgroundColor: chartColors,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false }
+                });
+            };
+
+            const populateMonthSelect = () => {
+                const monthSelect = document.getElementById('month-select');
+                monthSelect.innerHTML = '';
+                const availableMonths = [...new Set(novedades.map(n => n.fecha.slice(0, 7)))].sort().reverse();
+                availableMonths.forEach(month => {
+                    const date = new Date(`${month}-01T00:00:00`);
+                    const option = document.createElement('option');
+                    option.value = month;
+                    option.textContent = `${getMonthName(date.getMonth())} ${date.getFullYear()}`;
+                    monthSelect.appendChild(option);
+                });
+                monthSelect.value = selectedMonth;
+            };
+
+            const filterData = () => {
+                const now = new Date();
+                if (currentFilter === 'all') return novedades;
+                
+                const filterDate = new Date();
+                if (currentFilter === 'week') {
+                    filterDate.setDate(now.getDate() - 7);
+                    return novedades.filter(n => new Date(n.fecha) >= filterDate);
+                } else if (currentFilter === 'month') {
+                    filterDate.setMonth(now.getMonth(), 1);
+                    filterDate.setHours(0,0,0,0);
+                    return novedades.filter(n => new Date(n.fecha) >= filterDate);
+                } else if (currentFilter === 'month-specific') {
+                    const [year, month] = selectedMonth.split('-');
+                    return novedades.filter(n => n.fecha.startsWith(selectedMonth));
+                }
+            };
+            
+            const refreshUI = () => {
+                const filtered = filterData();
+                renderNovedadesTable(filtered);
+                renderKPIs(novedades);
+                renderCharts(filtered);
+                renderPriceTable();
+                renderAuditTable();
+                document.getElementById('bolsa-peso').value = bolsaPeso;
+            };
+
+            const novedadModal = document.getElementById('novedad-modal');
+            const novedadForm = document.getElementById('novedad-form');
+            const tipoSelect = document.getElementById('tipo');
+            const productoSelect = document.getElementById('producto');
+            const confirmModal = document.getElementById('confirm-modal');
+            const passwordModal = document.getElementById('password-modal');
+            const passwordInput = document.getElementById('password-input');
+            const messageModal = document.getElementById('message-modal');
+
+            const openModal = (modal) => {
+                modal.classList.remove('hidden');
+                setTimeout(() => {
+                    modal.classList.remove('opacity-0');
+                    modal.querySelector('.modal-content').classList.remove('-translate-y-10');
+                }, 10);
+            };
+
+            const closeModal = (modal) => {
+                modal.classList.add('opacity-0');
+                modal.querySelector('.modal-content').classList.add('-translate-y-10');
+                setTimeout(() => modal.classList.add('hidden'), 250);
+            };
+            
+            const openNovedadModal = (novedad = null) => {
+                novedadForm.reset();
+                document.getElementById('novedad-id').value = '';
+                if (novedad) {
+                    document.getElementById('modal-title').textContent = 'Editar Novedad';
+                    document.getElementById('novedad-id').value = novedad.id;
+                    document.getElementById('fecha').value = novedad.fecha;
+                    tipoSelect.value = novedad.tipo;
+                    updateProductoOptions();
+                    productoSelect.value = novedad.producto;
+                    document.getElementById('cantidad').value = novedad.cantidad;
+                    document.getElementById('operarios').value = novedad.operarios;
+                    document.getElementById('comentarios').value = novedad.comentarios;
+                } else {
+                    document.getElementById('modal-title').textContent = 'Nueva Novedad';
+                    document.getElementById('fecha').valueAsDate = new Date();
+                }
+                openModal(novedadModal);
+            };
+
+            const openConfirmModal = () => openModal(confirmModal);
+            const closeConfirmModal = () => closeModal(confirmModal);
+
+            const openPasswordModal = (actionType) => {
+                passwordInput.value = '';
+                passwordInput.dataset.action = actionType;
+                openModal(passwordModal);
+            };
+            const closePasswordModal = () => closeModal(passwordModal);
+            
+            document.getElementById('message-ok-btn').addEventListener('click', () => closeModal(messageModal));
+
+
+            const updateProductoOptions = () => {
+                const selectedTipo = tipoSelect.value;
+                const productos = options.tipo[selectedTipo] || [];
+                productoSelect.innerHTML = productos.map(p => `<option value="${p}">${p}</option>`).join('');
+            };
+
+            Object.keys(options.tipo).forEach(tipo => {
+                tipoSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+            });
+            updateProductoOptions();
+
+            tipoSelect.addEventListener('change', updateProductoOptions);
+            document.getElementById('add-btn').addEventListener('click', () => openNovedadModal());
+            document.getElementById('novedad-cancel-btn').addEventListener('click', () => closeModal(novedadModal));
+            
+            novedadForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const id = document.getElementById('novedad-id').value;
+                const oldNovedad = id ? novedades.find(n => n.id === parseInt(id)) : null;
+                const newNovedad = {
+                    id: id ? parseInt(id) : Date.now(),
+                    fecha: document.getElementById('fecha').value,
+                    tipo: tipoSelect.value,
+                    producto: productoSelect.value,
+                    cantidad: parseFloat(document.getElementById('cantidad').value),
+                    operarios: parseInt(document.getElementById('operarios').value),
+                    comentarios: document.getElementById('comentarios').value,
+                };
+
+                if (id) {
+                    novedades = novedades.map(n => n.id === newNovedad.id ? newNovedad : n);
+                    logAction('edit', { old: oldNovedad, new: newNovedad });
+                } else {
+                    novedades.push(newNovedad);
+                    logAction('new', newNovedad);
+                }
+                saveNovedades();
+                refreshUI();
+                closeModal(novedadModal);
+            });
+
+            document.getElementById('novedades-table-body').addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.classList.contains('edit-btn')) {
+                    const id = parseInt(target.dataset.id);
+                    const novedadToEdit = novedades.find(n => n.id === id);
+                    openNovedadModal(novedadToEdit);
+                }
+                if (target.classList.contains('delete-btn')) {
+                    deleteId = parseInt(target.dataset.id);
+                    deleteType = 'novedad';
+                    openConfirmModal();
+                }
+            });
+
+            document.getElementById('audit-table-body').addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.classList.contains('delete-audit-btn')) {
+                    deleteId = parseInt(target.dataset.id);
+                    deleteType = 'audit-individual';
+                    openPasswordModal(deleteType);
+                }
+            });
+
+            document.getElementById('clear-audit-btn').addEventListener('click', () => {
+                openPasswordModal('audit-all');
+            });
+
+
+            document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+                if (deleteType === 'novedad') {
+                    if (deleteId !== null) {
+                        const deletedNovedad = novedades.find(n => n.id === deleteId);
+                        novedades = novedades.filter(n => n.id !== deleteId);
+                        saveNovedades();
+                        logAction('delete', deletedNovedad);
+                        refreshUI();
+                        closeConfirmModal();
+                        deleteId = null;
+                        deleteType = null;
+                    }
+                }
+            });
+
+            document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+                closeConfirmModal();
+                deleteId = null;
+                deleteType = null;
+            });
+            
+            passwordInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('password-confirm-btn').click();
+                }
+            });
+
+            document.getElementById('password-confirm-btn').addEventListener('click', () => {
+                const enteredPassword = passwordInput.value;
+                const action = passwordInput.dataset.action;
+                if (enteredPassword === AUDIT_PASSWORD) {
+                    if (action === 'audit-individual' && deleteId !== null) {
+                        auditLog = auditLog.filter(log => log.id !== deleteId);
+                        saveAuditLog();
+                        refreshUI();
+                        deleteId = null;
+                    } else if (action === 'audit-all') {
+                        auditLog = [];
+                        saveAuditLog();
+                        refreshUI();
+                    }
+                    closePasswordModal();
+                } else {
+                    showMessage('Clave Incorrecta', 'La clave ingresada no es correcta. Por favor, inténtalo de nuevo.');
+                }
+            });
+
+            document.getElementById('password-cancel-btn').addEventListener('click', closePasswordModal);
+
+            document.getElementById('time-filters').addEventListener('click', (e) => {
+                const target = e.target;
+                if (target.tagName === 'BUTTON') {
+                    currentFilter = target.dataset.filter;
+                    document.querySelectorAll('#time-filters .filter-btn').forEach(btn => {
+                        btn.classList.remove('bg-blue-600', 'text-white');
+                        btn.classList.add('bg-gray-200', 'text-gray-700');
+                    });
+                    target.classList.add('bg-blue-600', 'text-white');
+                    target.classList.remove('bg-gray-200', 'text-gray-700');
+                    document.getElementById('month-select').classList.add('hidden');
+                    if (currentFilter === 'month-specific') {
+                        document.getElementById('month-select').classList.remove('hidden');
+                        populateMonthSelect();
+                    }
+                    refreshUI();
+                }
+            });
+
+            document.getElementById('month-select').addEventListener('change', (e) => {
+                selectedMonth = e.target.value;
+                refreshUI();
+            });
+
+
+            // CSV Import/Export Logic
+            const exportToCsv = () => {
+                const headers = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
+                const rows = novedades.map(n => {
+                    const formattedComments = `"${n.comentarios.replace(/"/g, '""')}"`;
+                    return [
+                        n.id,
+                        n.fecha,
+                        n.tipo,
+                        n.producto,
+                        n.cantidad,
+                        n.operarios,
+                        formattedComments
+                    ].join(',');
+                });
+
+                const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.join('\n');
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "novedades.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            const importFromCsv = (file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const content = e.target.result;
+                    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+                    const newNovedades = [];
+                    const importErrors = [];
+                    
+                    const expectedHeaders = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
+                    const headerLine = lines[0].toLowerCase().split(',').map(h => h.trim());
+                    const headerMap = {};
+                    headerLine.forEach((h, i) => headerMap[h] = i);
+                    
+                    // Check if headers match and get their positions
+                    const hasValidHeaders = expectedHeaders.every(h => headerMap.hasOwnProperty(h));
+
+                    if (lines.length <= 1 || !hasValidHeaders) {
+                        showMessage('Importación Fallida', 'El archivo no tiene un formato CSV válido con las columnas esperadas.');
+                        return;
+                    }
+                    
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (line.trim() === '') continue; // Skip empty lines
+                        try {
+                            // A more robust CSV parser
+                            let parts = [];
+                            let inQuote = false;
+                            let currentPart = '';
+                            for (let j = 0; j < line.length; j++) {
+                                const char = line[j];
+                                if (char === '"' && (j === 0 || line[j-1] === ',')) {
+                                    inQuote = !inQuote;
+                                } else if (char === ',' && !inQuote) {
+                                    parts.push(currentPart.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+                                    currentPart = '';
+                                } else {
+                                    currentPart += char;
+                                }
+                            }
+                            parts.push(currentPart.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
+                            
+                            if (parts.length !== expectedHeaders.length) {
+                                throw new Error(`número de columnas incorrecto. Se encontraron ${parts.length} de ${expectedHeaders.length}.`);
+                            }
+
+                            const novedad = {
+                                id: parseInt(parts[headerMap.id]) || Date.now() + i, 
+                                fecha: parts[headerMap.fecha],
+                                tipo: parts[headerMap.tipo],
+                                producto: parts[headerMap.producto],
+                                cantidad: parseFloat(parts[headerMap.cantidad]),
+                                operarios: parseInt(parts[headerMap.operarios]),
+                                comentarios: parts[headerMap.comentarios] || '',
+                            };
+
+                            if (isNaN(novedad.cantidad) || isNaN(novedad.operarios)) {
+                                throw new Error('valores de cantidad u operarios no válidos.');
+                            }
+                            
+                            if (!novedad.fecha || !novedad.tipo || !novedad.producto) {
+                                throw new Error('faltan datos clave (fecha, tipo o producto).');
+                            }
+
+                            newNovedades.push(novedad);
+                        } catch (error) {
+                            importErrors.push(`Línea ${i + 1}: ${error.message}`);
+                            console.error(`Error en la línea ${i + 1}: ${error.message}`);
+                        }
+                    }
+
+                    if (newNovedades.length > 0) {
+                        novedades = [...novedades, ...newNovedades];
+                        saveNovedades();
+                        refreshUI();
+                        let message = `Se han importado ${newNovedades.length} de ${lines.length - 1 - importErrors.length} registros.`;
+                        if (importErrors.length > 0) {
+                            message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
+                        }
+                        showMessage('Importación Exitosa', message);
+                    } else {
+                         showMessage('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+
+            document.getElementById('export-btn').addEventListener('click', exportToCsv);
+            document.getElementById('refresh-btn').addEventListener('click', () => {
+                refreshUI();
+            });
+            document.getElementById('import-btn').addEventListener('click', () => {
+                document.getElementById('csv-file').click();
+            });
+            document.getElementById('csv-file').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) importFromCsv(file);
+            });
+
+            // Prices Maintenance Logic
+            const priceModal = document.getElementById('price-modal');
+            const priceForm = document.getElementById('price-form');
+
+            const openPriceModal = (product) => {
+                const config = productConfig[product];
+                document.getElementById('price-product-name').value = product;
+                document.getElementById('price-kg-factor').value = config.kgFactor;
+                document.getElementById('price-price-per-kg').value = config.pricePerKg;
+                openModal(priceModal);
+            };
+
+            const closePriceModal = () => closeModal(priceModal);
+
+            document.getElementById('prices-table-body').addEventListener('click', (e) => {
+                if (e.target.classList.contains('edit-price-btn')) {
+                    const product = e.target.dataset.product;
+                    openPriceModal(product);
+                }
+            });
+
+            document.getElementById('price-cancel-btn').addEventListener('click', closePriceModal);
+
+            priceForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const product = document.getElementById('price-product-name').value;
+                const kgFactor = parseFloat(document.getElementById('price-kg-factor').value);
+                const pricePerKg = parseFloat(document.getElementById('price-price-per-kg').value);
+                
+                if (!isNaN(kgFactor) && !isNaN(pricePerKg)) {
+                    productConfig[product] = { kgFactor, pricePerKg };
+                    saveProductConfig();
+                    refreshUI();
+                    closePriceModal();
+                }
+            });
+
+            // Bag Peso Logic
+            const bolsaPesoInput = document.getElementById('bolsa-peso');
+            const saveBolsaBtn = document.getElementById('save-bolsa-btn');
+            
+            bolsaPesoInput.value = bolsaPeso;
+
+            saveBolsaBtn.addEventListener('click', () => {
+                const newPeso = parseFloat(bolsaPesoInput.value);
+                if (!isNaN(newPeso) && newPeso > 0) {
+                    bolsaPeso = newPeso;
+                    saveBolsaPeso();
+                    refreshUI();
+                } else {
+                    showMessage('Valor Inválido', 'Por favor, ingresa un valor válido para el peso de la bolsa.');
+                }
+            });
+
+            // Navigation Logic
+            const dashboardSection = document.getElementById('dashboard-section');
+            const pricesSection = document.getElementById('prices-section');
+            const navDashboardBtn = document.getElementById('nav-dashboard');
+            const navPricesBtn = document.getElementById('nav-prices');
+            const headerSubtitle = document.getElementById('header-subtitle');
+            const addBtn = document.getElementById('add-btn');
+
+            const showSection = (sectionId) => {
+                dashboardSection.classList.add('hidden');
+                pricesSection.classList.add('hidden');
+                document.getElementById(sectionId).classList.remove('hidden');
+
+                navDashboardBtn.classList.remove('bg-blue-600', 'text-white');
+                navDashboardBtn.classList.add('bg-gray-200', 'text-gray-700');
+                navPricesBtn.classList.remove('bg-blue-600', 'text-white');
+                navPricesBtn.classList.add('bg-gray-200', 'text-gray-700');
+                
+                if (sectionId === 'dashboard-section') {
+                    navDashboardBtn.classList.add('bg-blue-600', 'text-white');
+                    headerSubtitle.textContent = 'Visualiza y gestiona las novedades diarias de materiales y Produccion.';
+                    addBtn.classList.remove('hidden');
+                } else {
+                    navPricesBtn.classList.add('bg-blue-600', 'text-white');
+                    headerSubtitle.textContent = 'Actualiza los factores de conversión y precios de los productos, y configura notificaciones.';
+                    addBtn.classList.add('hidden');
+                }
+            };
+            
+            navDashboardBtn.addEventListener('click', () => showSection('dashboard-section'));
+            navPricesBtn.addEventListener('click', () => showSection('prices-section'));
+
+            // Initial UI rendering
+            showSection('dashboard-section');
+            populateMonthSelect();
+            document.getElementById('month-select').value = selectedMonth;
+            refreshUI();
+        });
+    </script>
+</body>
+</html>
