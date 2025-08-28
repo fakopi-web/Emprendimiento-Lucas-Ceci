@@ -22,6 +22,7 @@
             height: 100%;
             background: rgba(255, 255, 255, 0.8);
             display: flex;
+            flex-direction: column; /* Allow content to stack vertically */
             justify-content: center;
             align-items: center;
             z-index: 1000;
@@ -115,6 +116,8 @@
     <!-- Loading Overlay -->
     <div id="loading-overlay" class="loading-overlay hidden">
         <div class="spinner"></div>
+        <p id="loading-message" class="mt-4 text-gray-700">Cargando...</p>
+        <button id="cancel-import-btn" class="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg font-medium hidden">Cancelar</button>
     </div>
 
     <div id="app" class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -441,6 +444,7 @@
         let deleteId = null;
         let deleteType = null; // 'novedad' or 'audit'
         let deleteFirestoreId = null; // To store Firestore ID for delete operations
+        let cancelImport = false; // New flag to control import cancellation
 
         const AUDIT_PASSWORD = '1234';
 
@@ -838,9 +842,28 @@
         // Renamed from messageModal to llmOutputModal
         const llmOutputModal = document.getElementById('llm-output-modal');
         const loadingOverlay = document.getElementById('loading-overlay');
+        const loadingMessage = document.getElementById('loading-message');
+        const cancelImportBtn = document.getElementById('cancel-import-btn');
 
-        const showLoading = () => loadingOverlay.classList.remove('hidden');
-        const hideLoading = () => loadingOverlay.classList.add('hidden');
+        const showLoading = (message = 'Cargando...') => {
+            loadingMessage.textContent = message;
+            cancelImportBtn.classList.add('hidden'); // Hide by default for general loading
+            loadingOverlay.classList.remove('hidden');
+            setTimeout(() => {
+                loadingOverlay.classList.remove('opacity-0');
+            }, 10);
+        };
+
+        const showImportLoading = (message = 'Importando datos...') => {
+            showLoading(message);
+            cancelImportBtn.classList.remove('hidden'); // Show cancel button for import
+        };
+
+        const hideLoading = () => {
+            loadingOverlay.classList.add('opacity-0');
+            setTimeout(() => loadingOverlay.classList.add('hidden'), 250);
+            cancelImport = false; // Reset cancel flag when loading is hidden
+        };
 
 
         const openModal = (modal) => {
@@ -891,6 +914,13 @@
         
         // Renamed from message-ok-btn to llm-output-ok-btn
         document.getElementById('llm-output-ok-btn').addEventListener('click', () => closeModal(llmOutputModal));
+
+        // Event listener for the new cancel import button
+        cancelImportBtn.addEventListener('click', () => {
+            cancelImport = true;
+            loadingMessage.textContent = 'Cancelando importación... Por favor, espera.';
+            cancelImportBtn.classList.add('hidden'); // Hide the button once clicked
+        });
 
 
         const updateProductoOptions = () => {
@@ -1112,7 +1142,9 @@
         const importFromCsv = (file) => {
             const reader = new FileReader();
             reader.onload = async (e) => {
-                showLoading(); // Mostrar la capa de carga inmediatamente
+                showImportLoading('Preparando importación...'); // Mostrar la capa de carga con botón de cancelar
+                cancelImport = false; // Reset the cancel flag at the start of import
+                let successfullyLoadedLines = 0;
 
                 try {
                     const content = e.target.result;
@@ -1128,13 +1160,16 @@
                     const hasValidHeaders = expectedHeaders.every(h => headerMap[h] !== -1);
 
                     if (lines.length <= 1 || !hasValidHeaders) {
-                        // Ocultar la carga antes de mostrar el mensaje de error o éxito
-                        hideLoading();
                         showLLMOutput('Importación Fallida', 'El archivo no tiene un formato CSV válido o le faltan las columnas esperadas (id, fecha, tipo, producto, cantidad, operarios, comentarios).');
                         return; 
                     }
                     
                     for (let i = 1; i < lines.length; i++) {
+                        if (cancelImport) { // Check for cancellation flag in each iteration
+                            break;
+                        }
+                        loadingMessage.textContent = `Importando línea ${i} de ${lines.length - 1}...`;
+
                         const line = lines[i];
                         if (line.trim() === '') continue;
                         try {
@@ -1202,6 +1237,8 @@
                             }
 
                             newNovedadesToImport.push(novedad);
+                            successfullyLoadedLines++;
+
                         } catch (error) {
                             importErrors.push(`Línea ${i + 1}: ${error.message}`);
                             console.error(`Error en la línea ${i + 1}: ${error.message}`);
@@ -1213,23 +1250,28 @@
                         const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
                         await Promise.all(addPromises);
                         refreshUI(); 
-                        let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
+
+                        let message = '';
+                        if (cancelImport) {
+                            message = `Importación cancelada. Se cargaron ${successfullyLoadedLines} de ${lines.length -1} registros.`;
+                        } else {
+                            message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
+                        }
+                        
                         if (importErrors.length > 0) {
                             message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
                         }
-                        // Ocultar la carga antes de mostrar el mensaje de error o éxito
-                        hideLoading();
-                        showLLMOutput('Importación Exitosa', message);
+                        showLLMOutput('Importación Finalizada', message);
+                    } else if (cancelImport) {
+                        showLLMOutput('Importación Cancelada', `No se cargó ningún registro antes de la cancelación.`);
                     } else {
-                        // Ocultar la carga antes de mostrar el mensaje de error o éxito
-                        hideLoading();
                         showLLMOutput('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
                     }
                 } catch (generalError) {
                     console.error("Error general durante la importación CSV:", generalError);
-                    // Ocultar la carga antes de mostrar el mensaje de error o éxito
-                    hideLoading();
                     showLLMOutput('Error Crítico de Importación', `Ocurrió un error inesperado durante el procesamiento del archivo: ${generalError.message}`);
+                } finally {
+                    hideLoading(); // Always hide loading overlay
                 }
             };
             reader.readAsText(file);
@@ -1378,17 +1420,8 @@
 - Producción Total ($): ${document.getElementById('kpi-total-value-produced').textContent}
             `;
 
-            const systemPrompt = "You are an AI assistant specialized in analyzing production data and providing actionable improvement suggestions. Your responses should be concise, in bullet-point format (using `-`), and always in Spanish. Focus on identifying patterns, inefficiencies, or areas for optimization based on the provided production records and key performance indicators (KPIs). If the data seems insufficient for specific insights, you can mention that.";
-            const userQuery = `Analiza las siguientes novedades de producción y KPIs y sugiere entre 3 y 5 ideas de mejora para la eficiencia operativa. Céntrate en patrones de tipos de producción, productos, cantidades, comentarios y cómo se relacionan con los KPIs.
-
-Datos de Novedades (últimos ${dataToAnalyze.slice(0, 20).length} registros):
-${novedadesSample}
-
-KPIs Actuales:
-${kpiSummary}
-`;
-            showLoading();
-            showLLMOutput('Generando Ideas...', 'La IA de Gemini está analizando tus datos. Esto puede tomar unos segundos.');
+            showLoading('Generando Ideas...'); // Show generic loading for AI
+            showLLMOutput('Generando Ideas...', 'La IA de Gemini está analizando tus datos. Esto puede tomar unos segundos.'); // This is shown on top of loading, should be reversed.
 
             const apiKey = ""; // Canvas will provide this
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
@@ -1406,43 +1439,51 @@ ${kpiSummary}
             const maxRetries = 3;
             const baseDelay = 1000; // 1 second
 
-            while (retries < maxRetries) {
-                try {
-                    const response = await fetch(apiUrl, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
+            try { // Added try-catch for the AI call
+                while (retries < maxRetries) {
+                    try {
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
 
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
-                    }
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(`API error: ${response.status} ${response.statusText} - ${JSON.stringify(errorData)}`);
+                        }
 
-                    const result = await response.json();
-                    const candidate = result.candidates?.[0];
+                        const result = await response.json();
+                        const candidate = result.candidates?.[0];
 
-                    if (candidate && candidate.content?.parts?.[0]?.text) {
-                        responseText = candidate.content.parts[0].text;
-                        break; // Success, exit loop
-                    } else {
-                        throw new Error("No se pudo obtener una respuesta válida de la IA. Inténtalo de nuevo.");
-                    }
-                } catch (error) {
-                    console.error(`Intento ${retries + 1} fallido:`, error);
-                    retries++;
-                    if (retries < maxRetries) {
-                        const delay = baseDelay * Math.pow(2, retries); // Exponential backoff
-                        await new Promise(resolve => setTimeout(resolve, delay));
-                        showLLMOutput('Reintentando...', `Error al generar ideas, reintentando en ${delay / 1000} segundos...`);
-                    } else {
-                        responseText = 'No se pudo generar ideas de mejora en este momento. Por favor, intenta de nuevo más tarde.';
+                        if (candidate && candidate.content?.parts?.[0]?.text) {
+                            responseText = candidate.content.parts[0].text;
+                            break; // Success, exit loop
+                        } else {
+                            throw new Error("No se pudo obtener una respuesta válida de la IA. Inténtalo de nuevo.");
+                        }
+                    } catch (error) {
+                        console.error(`Intento ${retries + 1} fallido:`, error);
+                        retries++;
+                        if (retries < maxRetries) {
+                            const delay = baseDelay * Math.pow(2, retries); // Exponential backoff
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            // Only update message if it's the current active message (not LLM output)
+                            if (loadingOverlay.classList.contains('hidden') === false) { // Check if loading is still active
+                                loadingMessage.textContent = `Error al generar ideas, reintentando en ${delay / 1000} segundos...`;
+                            }
+                        } else {
+                            responseText = 'No se pudo generar ideas de mejora en este momento. Por favor, intenta de nuevo más tarde.';
+                        }
                     }
                 }
+            } catch (aiCallError) {
+                console.error("Error durante la llamada a la API de Gemini:", aiCallError);
+                responseText = 'Ocurrió un error al conectar con el servicio de IA. Por favor, inténtalo de nuevo más tarde.';
+            } finally {
+                hideLoading(); // Hide loading after the AI call
+                showLLMOutput('Ideas de Mejora Sugeridas', responseText);
             }
-            // Ocultar la carga antes de mostrar el mensaje de error o éxito
-            hideLoading();
-            showLLMOutput('Ideas de Mejora Sugeridas', responseText);
         });
         // --- End Gemini API Integration ---
 
