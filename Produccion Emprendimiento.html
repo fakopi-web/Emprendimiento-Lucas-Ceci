@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Panel de Control de Produccion</title>
+    <title>Panel de Control de Producción</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -14,21 +14,109 @@
         .modal { transition: opacity 0.25s ease; }
         .modal-content { transition: transform 0.25s ease; }
         .table-cell { white-space: nowrap; }
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
+    <!-- Firebase SDK Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global Firebase instances and user state
+        window.firebaseApp = null;
+        window.db = null;
+        window.auth = null;
+        window.userId = null;
+        window.isAuthReady = false; // Flag to indicate if auth is ready and userId is set
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        async function initFirebase() {
+            try {
+                window.firebaseApp = initializeApp(firebaseConfig);
+                window.auth = getAuth(window.firebaseApp);
+                window.db = getFirestore(window.firebaseApp);
+
+                onAuthStateChanged(window.auth, async (user) => {
+                    if (user) {
+                        window.userId = user.uid;
+                        console.log("Authenticated with Firebase UID:", window.userId);
+                    } else {
+                        console.log("No user signed in, attempting anonymous sign-in.");
+                        try {
+                            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(window.auth, initialAuthToken);
+                            } else {
+                                await signInAnonymously(window.auth);
+                            }
+                            window.userId = window.auth.currentUser.uid;
+                            console.log("Signed in anonymously with UID:", window.userId);
+                        } catch (error) {
+                            console.error("Error signing in to Firebase:", error);
+                            // Fallback to a random ID if anonymous sign-in fails
+                            window.userId = crypto.randomUUID();
+                        }
+                    }
+                    window.isAuthReady = true;
+                    // Dispatch a custom event to signal that Firebase and auth are ready
+                    document.dispatchEvent(new CustomEvent('firebaseAuthReady'));
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+            }
+        }
+        initFirebase();
+    </script>
 </head>
 <body class="bg-gray-50 text-gray-800">
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+    </div>
 
     <div id="app" class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
 
         <header class="mb-8">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center">
-                <h1 class="text-3xl font-bold text-gray-900">Panel de Control de Produccion</h1>
+                <h1 class="text-3xl font-bold text-gray-900">Panel de Control de Producción</h1>
                 <div class="flex space-x-2 mt-4 sm:mt-0">
                     <button id="nav-dashboard" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Dashboard</button>
                     <button id="nav-prices" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Mantenimiento</button>
                 </div>
             </div>
-            <p id="header-subtitle" class="text-gray-600 mt-1">Visualiza y gestiona las novedades diarias de materiales y Produccion.</p>
+            <p id="header-subtitle" class="text-gray-600 mt-1">Visualiza y gestiona las novedades diarias de materiales y Producción.</p>
         </header>
 
         <main>
@@ -37,7 +125,7 @@
                 <!-- KPIs Section -->
                 <section id="kpis" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-medium text-gray-500">Produccion Total (KG)</h3>
+                        <h3 class="text-sm font-medium text-gray-500">Producción Total (KG)</h3>
                         <p id="kpi-total-kg" class="text-3xl font-bold text-gray-900 mt-2">0</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -56,7 +144,7 @@
                 
                 <section id="kpis-row-2" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-medium text-gray-500">Valor de Produccion ($)</h3>
+                        <h3 class="text-sm font-medium text-gray-500">Valor de Producción ($)</h3>
                         <p id="kpi-total-value" class="text-3xl font-bold text-gray-900 mt-2">0</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -76,15 +164,15 @@
                 <!-- Expanded Production KPIs Section -->
                 <section id="kpis-row-3" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-medium text-gray-500">Produccion Pellets (KG)</h3>
+                        <h3 class="text-sm font-medium text-gray-500">Producción Pellets (KG)</h3>
                         <p id="kpi-pellets-kg" class="text-3xl font-bold text-gray-900 mt-2">0</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-medium text-gray-500">Produccion Molido (KG)</h3>
+                        <h3 class="text-sm font-medium text-gray-500">Producción Molido (KG)</h3>
                         <p id="kpi-molido-kg" class="text-3xl font-bold text-gray-900 mt-2">0</p>
                     </div>
                     <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
-                        <h3 class="text-sm font-medium text-gray-500">Produccion Total ($)</h3>
+                        <h3 class="text-sm font-medium text-gray-500">Producción Total ($)</h3>
                         <p id="kpi-total-value-produced" class="text-3xl font-bold text-gray-900 mt-2">0</p>
                     </div>
                 </section>
@@ -104,7 +192,7 @@
                     
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                         <div>
-                            <h3 class="text-lg font-semibold text-center mb-2">Produccion (KG) por Producto</h3>
+                            <h3 class="text-lg font-semibold text-center mb-2">Producción (KG) por Producto</h3>
                             <p class="text-sm text-gray-500 text-center mb-4">Compara la cantidad total producida de cada línea de producto.</p>
                             <div class="chart-container h-80 md:h-96">
                                 <canvas id="productionByProductChart"></canvas>
@@ -317,754 +405,904 @@
         </svg>
     </button>
     
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const initialData = [
-                { id: 1, fecha: '2025-08-01', tipo: 'Produccion Diurna', producto: 'Pellets', cantidad: 550, operarios: 4, comentarios: 'Produccion estándar.' },
-                { id: 2, fecha: '2025-08-01', tipo: 'Produccion Diurna', producto: 'Molido Policarbonato', cantidad: 10, operarios: 2, comentarios: '10 bandejas.' },
-                { id: 3, fecha: '2025-08-02', tipo: 'Novedades Diurna', producto: 'Bidones 20L', cantidad: 200, operarios: 1, comentarios: 'Recepción de material.' },
-                { id: 4, fecha: '2025-08-03', tipo: 'Egreso Produccion', producto: 'Egreso Pellets', cantidad: 500, operarios: 1, comentarios: 'Entrega a cliente A.' },
-                { id: 5, fecha: '2025-08-03', tipo: 'Pendiente de Cobro', producto: 'Pendiente de Cobro', cantidad: 20000, operarios: 0, comentarios: 'Cliente A.' },
-                { id: 6, fecha: '2025-08-10', tipo: 'Cobro de Pendiente', producto: 'Cobro de Pendiente', cantidad: 20000, operarios: 0, comentarios: 'Saldo de cliente A.' },
-                { id: 7, fecha: '2025-08-12', tipo: 'Produccion Nocturna', producto: 'Pellets', cantidad: 480, operarios: 3, comentarios: '' },
-                { id: 8, fecha: '2025-08-15', tipo: 'Produccion Diurna', producto: 'Molido Policarbonato', cantidad: 15, operarios: 2, comentarios: '15 bandejas.' },
-                { id: 9, fecha: '2025-07-20', tipo: 'Produccion Diurna', producto: 'Pellets', cantidad: 600, operarios: 4, comentarios: 'Inicio de mes anterior' },
-                { id: 10, fecha: '2025-07-25', tipo: 'Produccion Diurna', producto: 'Bidones 12L', cantidad: 100, operarios: 1, comentarios: 'Produccion Julio' },
-            ];
+    <script type="module">
+        import { collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-            const initialProductConfig = {
-                'Pellets': { kgFactor: 1, pricePerKg: 275 },
-                'Molido Policarbonato': { kgFactor: 75, pricePerKg: 200 },
-                'Bidones 12L': { kgFactor: 0.5, pricePerKg: 250 },
-                'Bidones 20L': { kgFactor: 0.85, pricePerKg: 300 },
-                'Tapas': { kgFactor: 1, pricePerKg: 150 },
-                'Egreso Pellets': { kgFactor: 1, pricePerKg: 275 },
-                'Egreso Molido Policarbonato': { kgFactor: 75, pricePerKg: 200 },
-                'Pendiente de Cobro': { kgFactor: 0, pricePerKg: 1 },
-                'Cobro de Pendiente': { kgFactor: 0, pricePerKg: 1 },
-            };
+        // Access global Firebase instances after they are initialized
+        let novedades = [];
+        let productConfig = {};
+        let auditLog = [];
+        let bolsaPeso = 25; 
+        
+        let currentFilter = 'month-specific'; 
+        let selectedMonth = new Date().toISOString().slice(0, 7);
+        let productionByProductChart, valueByProductChart;
+        let deleteId = null;
+        let deleteType = null; // 'novedad' or 'audit'
+
+        const AUDIT_PASSWORD = '1234';
+
+        const options = {
+            tipo: {
+                'Producción Diurna': ['Pellets', 'Molido Policarbonato'],
+                'Producción Nocturna': ['Pellets', 'Molido Policarbonato'],
+                'Novedades Diurna': ['Bidones 12L', 'Bidones 20L', 'Tapas'],
+                'Novedades Nocturna': ['Bidones 12L', 'Bidones 20L', 'Tapas'],
+                'Egreso Producción': ['Egreso Pellets', 'Egreso Molido Policarbonato'],
+                'Pendiente de Cobro': ['Pendiente de Cobro'],
+                'Cobro de Pendiente': ['Cobro de Pendiente'],
+            }
+        };
+
+        const formatCurrency = (value) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
+        const formatNumber = (value) => new Intl.NumberFormat('es-AR').format(value);
+        const getMonthName = (monthIndex) => ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][monthIndex];
+
+        const showMessage = (title, message) => {
+            document.getElementById('message-title').textContent = title;
+            document.getElementById('message-text').innerHTML = message;
+            openModal(document.getElementById('message-modal'));
+        };
+
+        const calculateFields = (novedad) => {
+            let kgNetos = 0;
+            let valor = 0;
+            let indicador = 'N';
+            let bolsas = 0;
+
+            const { tipo, producto, cantidad } = novedad;
+            const config = productConfig[producto] || { kgFactor: 0, pricePerKg: 0 };
             
-            let novedades = JSON.parse(localStorage.getItem('novedades')) || initialData;
-            let productConfig = JSON.parse(localStorage.getItem('productConfig')) || initialProductConfig;
-            let auditLog = JSON.parse(localStorage.getItem('auditLog')) || [];
-            let bolsaPeso = parseFloat(localStorage.getItem('bolsaPeso')) || 25; // Default weight for pellets bag
-            let currentFilter = 'month-specific'; 
-            let selectedMonth = new Date().toISOString().slice(0, 7);
-            let productionByProductChart, valueByProductChart;
-            let deleteId = null;
-            let deleteType = null; // 'novedad' or 'audit'
-
-            const AUDIT_PASSWORD = '1234';
-
-            const options = {
-                tipo: {
-                    'Produccion Diurna': ['Pellets', 'Molido Policarbonato'],
-                    'Produccion Nocturna': ['Pellets', 'Molido Policarbonato'],
-                    'Novedades Diurna': ['Bidones 12L', 'Bidones 20L', 'Tapas'],
-                    'Novedades Nocturna': ['Bidones 12L', 'Bidones 20L', 'Tapas'],
-                    'Egreso Produccion': ['Egreso Pellets', 'Egreso Molido Policarbonato'],
-                    'Pendiente de Cobro': ['Pendiente de Cobro'],
-                    'Cobro de Pendiente': ['Cobro de Pendiente'],
-                }
-            };
-
-            const formatCurrency = (value) => new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' }).format(value);
-            const formatNumber = (value) => new Intl.NumberFormat('es-AR').format(value);
-            const getMonthName = (monthIndex) => ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'][monthIndex];
-
-            const showMessage = (title, message) => {
-                document.getElementById('message-title').textContent = title;
-                document.getElementById('message-text').innerHTML = message;
-                openModal(document.getElementById('message-modal'));
-            };
-
-            const calculateFields = (novedad) => {
-                let kgNetos = 0;
-                let valor = 0;
-                let indicador = 'N';
-                let bolsas = 0;
-
-                const { tipo, producto, cantidad } = novedad;
-                const config = productConfig[producto] || { kgFactor: 0, pricePerKg: 0 };
-                
-                if (producto.includes('Pellets') && tipo.includes('Produccion')) {
-                    kgNetos = cantidad;
-                    bolsas = kgNetos / bolsaPeso;
-                } else if (producto.includes('Egreso Pellets')) {
-                    // Egreso de Pellets
-                    kgNetos = cantidad;
-                    bolsas = kgNetos / bolsaPeso;
-                } else {
-                    kgNetos = cantidad * config.kgFactor;
-                    bolsas = 0; 
-                }
-                
-                if (tipo === 'Pendiente de Cobro' || tipo === 'Cobro de Pendiente') {
-                    valor = cantidad;
-                } else {
-                    valor = kgNetos * config.pricePerKg;
-                }
-                
-                if (tipo.includes('Produccion')) indicador = 'P';
-                if (tipo.includes('Egreso')) indicador = 'E';
-
-                return { ...novedad, kgNetos, valor, indicador, bolsas };
-            };
-
-            const saveNovedades = () => {
-                localStorage.setItem('novedades', JSON.stringify(novedades));
-            };
-
-            const saveProductConfig = () => {
-                localStorage.setItem('productConfig', JSON.stringify(productConfig));
-            };
+            if (producto.includes('Pellets') && tipo.includes('Producción')) {
+                kgNetos = cantidad;
+                bolsas = kgNetos / bolsaPeso;
+            } else if (producto.includes('Egreso Pellets')) {
+                kgNetos = cantidad;
+                bolsas = kgNetos / bolsaPeso;
+            } else {
+                kgNetos = cantidad * config.kgFactor;
+                bolsas = 0; 
+            }
             
-            const saveBolsaPeso = () => {
-                localStorage.setItem('bolsaPeso', bolsaPeso);
-            };
+            if (tipo === 'Pendiente de Cobro' || tipo === 'Cobro de Pendiente') {
+                valor = cantidad;
+            } else {
+                valor = kgNetos * config.pricePerKg;
+            }
+            
+            if (tipo.includes('Producción')) indicador = 'P';
+            if (tipo.includes('Egreso')) indicador = 'E';
 
-            const saveAuditLog = () => {
-                localStorage.setItem('auditLog', JSON.stringify(auditLog));
-            };
+            return { ...novedad, kgNetos, valor, indicador, bolsas };
+        };
 
-            const logAction = (type, details) => {
-                const timestamp = new Date().toISOString();
-                let subject;
-                let logDetails = { ...details };
-                
-                // Add calculated fields to the log details for a complete record
-                if (type === 'new' || type === 'delete') {
-                    const processedDetails = calculateFields(details);
-                    logDetails = { ...logDetails, kgNetos: processedDetails.kgNetos, valor: processedDetails.valor, indicador: processedDetails.indicador, bolsas: processedDetails.bolsas };
-                } else if (type === 'edit') {
-                    subject = `Registro modificado`;
-                    const processedOld = calculateFields(details.old);
-                    const processedNew = calculateFields(details.new);
-                    logDetails = {
-                        old: { ...details.old, kgNetos: processedOld.kgNetos, valor: processedOld.valor, indicador: processedOld.indicador, bolsas: processedOld.bolsas },
-                        new: { ...details.new, kgNetos: processedNew.kgNetos, valor: processedNew.valor, indicador: processedNew.indicador, bolsas: processedNew.bolsas }
-                    };
-                }
+        const getCollectionPath = (collectionName) => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            return `artifacts/${appId}/users/${window.userId}/${collectionName}`;
+        };
 
-                if (type === 'new') subject = `Registro añadido`;
-                if (type === 'delete') subject = `Registro eliminado`;
-                
-                auditLog.unshift({
-                    id: Date.now(),
-                    timestamp,
-                    type,
-                    subject,
-                    details: logDetails
-                });
-                saveAuditLog();
-            };
+        // --- Firestore Operations ---
+        const saveNovedadToFirestore = async (novedad) => {
+            if (!window.db || !window.userId) return;
+            const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
+            if (novedad.firestoreId) {
+                await updateDoc(doc(window.db, novedadesColRef, novedad.firestoreId), novedad);
+            } else {
+                await addDoc(novedadesColRef, novedad);
+            }
+        };
 
-            const renderNovedadesTable = (data) => {
-                const tableBody = document.getElementById('novedades-table-body');
-                tableBody.innerHTML = data.map(n => {
-                    const processed = calculateFields(n);
-                    const bolsasDisplay = processed.bolsas ? formatNumber(processed.bolsas.toFixed(2)) : '-';
-                    return `
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 table-cell">${new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                            <td class="px-4 py-3 table-cell">${n.tipo}</td>
-                            <td class="px-4 py-3 table-cell">${n.producto}</td>
-                            <td class="px-4 py-3 table-cell text-right">${formatNumber(processed.kgNetos)}</td>
-                            <td class="px-4 py-3 table-cell text-right">${bolsasDisplay}</td>
-                            <td class="px-4 py-3 table-cell text-right">${formatCurrency(processed.valor)}</td>
-                            <td class="px-4 py-3 table-cell text-center">
-                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${processed.indicador === 'P' ? 'bg-green-100 text-green-800' : processed.indicador === 'E' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">
-                                    ${processed.indicador}
-                                </span>
-                            </td>
-                            <td class="px-4 py-3 table-cell text-center">
-                                <button class="edit-btn text-blue-600 hover:text-blue-900" data-id="${n.id}">Editar</button>
-                                <button class="delete-btn text-red-600 hover:text-red-900 ml-2" data-id="${n.id}">Eliminar</button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-            };
+        const deleteNovedadFromFirestore = async (firestoreId) => {
+            if (!window.db || !window.userId) return;
+            const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
+            await deleteDoc(doc(window.db, novedadesColRef, firestoreId));
+        };
 
-            const renderPriceTable = () => {
-                const tableBody = document.getElementById('prices-table-body');
-                const productsToDisplay = Object.keys(productConfig).filter(p => !p.startsWith('Egreso') && !p.includes('Cobro'));
-                tableBody.innerHTML = productsToDisplay.map(p => {
-                    const config = productConfig[p];
-                    return `
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-4 py-3 table-cell">${p}</td>
-                            <td class="px-4 py-3 table-cell text-right">${config.kgFactor}</td>
-                            <td class="px-4 py-3 table-cell text-right">${formatCurrency(config.pricePerKg)}</td>
-                            <td class="px-4 py-3 table-cell text-center">
-                                <button class="edit-price-btn text-blue-600 hover:text-blue-900" data-product="${p}">Editar</button>
-                            </td>
-                        </tr>
-                    `;
-                }).join('');
-            };
+        const saveProductConfigToFirestore = async () => {
+            if (!window.db || !window.userId) return;
+            const configDocRef = doc(window.db, getCollectionPath('product_config_collection'), 'settings');
+            await setDoc(configDocRef, { config: productConfig, bolsaPeso: bolsaPeso });
+        };
 
-            const renderAuditTable = () => {
-                const auditTableBody = document.getElementById('audit-table-body');
-                auditTableBody.innerHTML = auditLog.map(log => `
+        const logActionToFirestore = async (type, details) => {
+            if (!window.db || !window.userId) return;
+            const auditColRef = collection(window.db, getCollectionPath('audit_log_collection'));
+            const timestamp = new Date().toISOString();
+            let subject;
+            let logDetails = { ...details };
+
+            if (type === 'new' || type === 'delete') {
+                const processedDetails = calculateFields(details);
+                logDetails = { ...logDetails, kgNetos: processedDetails.kgNetos, valor: processedDetails.valor, indicador: processedDetails.indicador, bolsas: processedDetails.bolsas };
+            } else if (type === 'edit') {
+                subject = `Registro modificado`;
+                const processedOld = calculateFields(details.old);
+                const processedNew = calculateFields(details.new);
+                logDetails = {
+                    old: { ...details.old, kgNetos: processedOld.kgNetos, valor: processedOld.valor, indicador: processedOld.indicador, bolsas: processedOld.bolsas },
+                    new: { ...details.new, kgNetos: processedNew.kgNetos, valor: processedNew.valor, indicador: processedNew.indicador, bolsas: processedNew.bolsas }
+                };
+            }
+            if (type === 'new') subject = `Registro añadido`;
+            if (type === 'delete') subject = `Registro eliminado`;
+
+            await addDoc(auditColRef, {
+                timestamp,
+                type,
+                subject,
+                details: logDetails
+            });
+        };
+
+        const deleteAuditLogFromFirestore = async (firestoreId) => {
+            if (!window.db || !window.userId) return;
+            const auditColRef = collection(window.db, getCollectionPath('audit_log_collection'));
+            await deleteDoc(doc(window.db, auditColRef, firestoreId));
+        };
+
+        const clearAllAuditLogsFromFirestore = async () => {
+            if (!window.db || !window.userId) return;
+            const auditColRef = collection(window.db, getCollectionPath('audit_log_collection'));
+            const q = query(auditColRef);
+            const querySnapshot = await getDocs(q); // Use getDocs for a one-time fetch to delete
+            const deletePromises = [];
+            querySnapshot.forEach((document) => {
+                deletePromises.push(deleteDoc(document.ref));
+            });
+            await Promise.all(deletePromises);
+        };
+        // --- End Firestore Operations ---
+
+        const renderNovedadesTable = (data) => {
+            const tableBody = document.getElementById('novedades-table-body');
+            tableBody.innerHTML = data.map(n => {
+                const processed = calculateFields(n);
+                const bolsasDisplay = processed.bolsas ? formatNumber(processed.bolsas.toFixed(2)) : '-';
+                return `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 table-cell">${new Date(log.timestamp).toLocaleString('es-AR')}</td>
-                        <td class="px-4 py-3 table-cell">${log.type}</td>
-                        <td class="px-4 py-3 table-cell">${log.subject}</td>
-                        <td class="px-4 py-3 table-cell overflow-hidden max-w-xs">
-                            <pre class="text-xs p-1 bg-gray-100 rounded-md overflow-x-auto">${JSON.stringify(log.details, null, 2)}</pre>
+                        <td class="px-4 py-3 table-cell">${new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                        <td class="px-4 py-3 table-cell">${n.tipo}</td>
+                        <td class="px-4 py-3 table-cell">${n.producto}</td>
+                        <td class="px-4 py-3 table-cell text-right">${formatNumber(processed.kgNetos)}</td>
+                        <td class="px-4 py-3 table-cell text-right">${bolsasDisplay}</td>
+                        <td class="px-4 py-3 table-cell text-right">${formatCurrency(processed.valor)}</td>
+                        <td class="px-4 py-3 table-cell text-center">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${processed.indicador === 'P' ? 'bg-green-100 text-green-800' : processed.indicador === 'E' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">
+                                ${processed.indicador}
+                            </span>
                         </td>
                         <td class="px-4 py-3 table-cell text-center">
-                            <button class="delete-audit-btn text-red-600 hover:text-red-900" data-id="${log.id}">Eliminar</button>
+                            <button class="edit-btn text-blue-600 hover:text-blue-900" data-id="${n.id}" data-firestore-id="${n.firestoreId}">Editar</button>
+                            <button class="delete-btn text-red-600 hover:text-red-900 ml-2" data-id="${n.id}" data-firestore-id="${n.firestoreId}">Eliminar</button>
                         </td>
                     </tr>
-                `).join('');
-            };
+                `;
+            }).join('');
+        };
 
-            const renderKPIs = (data) => {
-                const processedData = data.map(calculateFields);
-                const totalKg = processedData.filter(n => n.tipo.includes('Produccion')).reduce((sum, n) => sum + n.kgNetos, 0);
-                const totalValue = processedData.filter(n => n.tipo.includes('Produccion')).reduce((sum, n) => sum + n.valor, 0);
-                const materialIn = processedData.filter(n => n.tipo.includes('Novedades')).reduce((sum, n) => sum + n.kgNetos, 0);
-                const pendingPayment = processedData.reduce((sum, n) => {
-                    if (n.tipo === 'Pendiente de Cobro') return sum + n.valor;
-                    if (n.tipo === 'Cobro de Pendiente') return sum - n.valor;
-                    return sum;
-                }, 0);
-                
-                const bagsProduced = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Pellets').reduce((sum, n) => sum + n.bolsas, 0);
-                const bagsDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Pellets').reduce((sum, n) => sum + (n.cantidad / bolsaPeso), 0);
-                const stockBags = bagsProduced - bagsDelivered;
-                
-                const totalKgPellets = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Pellets').reduce((sum, n) => sum + n.kgNetos, 0);
-                const totalKgMolido = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
-                const molidoProduced = processedData.filter(n => n.tipo.includes('Produccion') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
-                const molidoDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
-                const molidoStock = molidoProduced - molidoDelivered;
+        const renderPriceTable = () => {
+            const tableBody = document.getElementById('prices-table-body');
+            const productsToDisplay = Object.keys(productConfig).filter(p => !p.startsWith('Egreso') && !p.includes('Cobro'));
+            tableBody.innerHTML = productsToDisplay.map(p => {
+                const config = productConfig[p];
+                return `
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-4 py-3 table-cell">${p}</td>
+                        <td class="px-4 py-3 table-cell text-right">${config.kgFactor}</td>
+                        <td class="px-4 py-3 table-cell text-right">${formatCurrency(config.pricePerKg)}</td>
+                        <td class="px-4 py-3 table-cell text-center">
+                            <button class="edit-price-btn text-blue-600 hover:text-blue-900" data-product="${p}">Editar</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
 
+        const renderAuditTable = () => {
+            const auditTableBody = document.getElementById('audit-table-body');
+            auditTableBody.innerHTML = auditLog.map(log => `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 table-cell">${new Date(log.timestamp).toLocaleString('es-AR')}</td>
+                    <td class="px-4 py-3 table-cell">${log.type}</td>
+                    <td class="px-4 py-3 table-cell">${log.subject}</td>
+                    <td class="px-4 py-3 table-cell overflow-hidden max-w-xs">
+                        <pre class="text-xs p-1 bg-gray-100 rounded-md overflow-x-auto">${JSON.stringify(log.details, null, 2)}</pre>
+                    </td>
+                    <td class="px-4 py-3 table-cell text-center">
+                        <button class="delete-audit-btn text-red-600 hover:text-red-900" data-id="${log.id}" data-firestore-id="${log.firestoreId}">Eliminar</button>
+                    </td>
+                </tr>
+            `).join('');
+        };
 
-                document.getElementById('kpi-total-kg').textContent = formatNumber(totalKg);
-                document.getElementById('kpi-total-value').textContent = formatCurrency(totalValue);
-                document.getElementById('kpi-material-in').textContent = formatNumber(materialIn);
-                document.getElementById('kpi-pending-payment').textContent = formatCurrency(pendingPayment);
-                
-                document.getElementById('kpi-bags-produced').textContent = formatNumber(bagsProduced.toFixed(2));
-                document.getElementById('kpi-bags-delivered').textContent = formatNumber(bagsDelivered.toFixed(2));
-                document.getElementById('kpi-stock-bags').textContent = formatNumber(stockBags.toFixed(2));
-
-                // New KPIs
-                document.getElementById('kpi-stock-molido').textContent = formatNumber(molidoStock.toFixed(2));
-                document.getElementById('kpi-pellets-kg').textContent = formatNumber(totalKgPellets);
-                document.getElementById('kpi-molido-kg').textContent = formatNumber(totalKgMolido);
-                document.getElementById('kpi-total-value-produced').textContent = formatCurrency(totalValue);
-            };
-
-            const renderCharts = (data) => {
-                const processedData = data.map(calculateFields).filter(n => n.tipo.includes('Produccion'));
-                
-                const productionByProduct = processedData.reduce((acc, n) => {
-                    acc[n.producto] = (acc[n.producto] || 0) + n.kgNetos;
-                    return acc;
-                }, {});
-
-                const valueByProduct = processedData.reduce((acc, n) => {
-                    acc[n.producto] = (acc[n.producto] || 0) + n.valor;
-                    return acc;
-                }, {});
-
-                const chartColors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#d946ef', '#f43f5e'];
-
-                const prodCtx = document.getElementById('productionByProductChart').getContext('2d');
-                if (productionByProductChart) productionByProductChart.destroy();
-                productionByProductChart = new Chart(prodCtx, {
-                    type: 'bar',
-                    data: {
-                        labels: Object.keys(productionByProduct),
-                        datasets: [{
-                            label: 'Produccion (KG)',
-                            data: Object.values(productionByProduct),
-                            backgroundColor: chartColors,
-                            borderColor: chartColors.map(c => c + 'B3'),
-                            borderWidth: 1
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
-                });
-
-                const valueCtx = document.getElementById('valueByProductChart').getContext('2d');
-                if (valueByProductChart) valueByProductChart.destroy();
-                valueByProductChart = new Chart(valueCtx, {
-                    type: 'doughnut',
-                    data: {
-                        labels: Object.keys(valueByProduct),
-                        datasets: [{
-                            data: Object.values(valueByProduct),
-                            backgroundColor: chartColors,
-                            hoverOffset: 4
-                        }]
-                    },
-                    options: { responsive: true, maintainAspectRatio: false }
-                });
-            };
-
-            const populateMonthSelect = () => {
-                const monthSelect = document.getElementById('month-select');
-                monthSelect.innerHTML = '';
-                const availableMonths = [...new Set(novedades.map(n => n.fecha.slice(0, 7)))].sort().reverse();
-                availableMonths.forEach(month => {
-                    const date = new Date(`${month}-01T00:00:00`);
-                    const option = document.createElement('option');
-                    option.value = month;
-                    option.textContent = `${getMonthName(date.getMonth())} ${date.getFullYear()}`;
-                    monthSelect.appendChild(option);
-                });
-                monthSelect.value = selectedMonth;
-            };
-
-            const filterData = () => {
-                const now = new Date();
-                if (currentFilter === 'all') return novedades;
-                
-                const filterDate = new Date();
-                if (currentFilter === 'week') {
-                    filterDate.setDate(now.getDate() - 7);
-                    return novedades.filter(n => new Date(n.fecha) >= filterDate);
-                } else if (currentFilter === 'month') {
-                    filterDate.setMonth(now.getMonth(), 1);
-                    filterDate.setHours(0,0,0,0);
-                    return novedades.filter(n => new Date(n.fecha) >= filterDate);
-                } else if (currentFilter === 'month-specific') {
-                    const [year, month] = selectedMonth.split('-');
-                    return novedades.filter(n => n.fecha.startsWith(selectedMonth));
-                }
-            };
+        const renderKPIs = (data) => {
+            const processedData = data.map(calculateFields);
+            const totalKg = processedData.filter(n => n.tipo.includes('Producción')).reduce((sum, n) => sum + n.kgNetos, 0);
+            const totalValue = processedData.filter(n => n.tipo.includes('Producción')).reduce((sum, n) => sum + n.valor, 0);
+            const materialIn = processedData.filter(n => n.tipo.includes('Novedades')).reduce((sum, n) => sum + n.kgNetos, 0);
+            const pendingPayment = processedData.reduce((sum, n) => {
+                if (n.tipo === 'Pendiente de Cobro') return sum + n.valor;
+                if (n.tipo === 'Cobro de Pendiente') return sum - n.valor;
+                return sum;
+            }, 0);
             
-            const refreshUI = () => {
-                const filtered = filterData();
-                renderNovedadesTable(filtered);
-                renderKPIs(novedades);
-                renderCharts(filtered);
-                renderPriceTable();
-                renderAuditTable();
-                document.getElementById('bolsa-peso').value = bolsaPeso;
-            };
-
-            const novedadModal = document.getElementById('novedad-modal');
-            const novedadForm = document.getElementById('novedad-form');
-            const tipoSelect = document.getElementById('tipo');
-            const productoSelect = document.getElementById('producto');
-            const confirmModal = document.getElementById('confirm-modal');
-            const passwordModal = document.getElementById('password-modal');
-            const passwordInput = document.getElementById('password-input');
-            const messageModal = document.getElementById('message-modal');
-
-            const openModal = (modal) => {
-                modal.classList.remove('hidden');
-                setTimeout(() => {
-                    modal.classList.remove('opacity-0');
-                    modal.querySelector('.modal-content').classList.remove('-translate-y-10');
-                }, 10);
-            };
-
-            const closeModal = (modal) => {
-                modal.classList.add('opacity-0');
-                modal.querySelector('.modal-content').classList.add('-translate-y-10');
-                setTimeout(() => modal.classList.add('hidden'), 250);
-            };
+            const bagsProduced = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Pellets').reduce((sum, n) => sum + n.bolsas, 0);
+            const bagsDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Pellets').reduce((sum, n) => sum + (n.cantidad / bolsaPeso), 0);
+            const stockBags = bagsProduced - bagsDelivered;
             
-            const openNovedadModal = (novedad = null) => {
-                novedadForm.reset();
-                document.getElementById('novedad-id').value = '';
-                if (novedad) {
-                    document.getElementById('modal-title').textContent = 'Editar Novedad';
-                    document.getElementById('novedad-id').value = novedad.id;
-                    document.getElementById('fecha').value = novedad.fecha;
-                    tipoSelect.value = novedad.tipo;
-                    updateProductoOptions();
-                    productoSelect.value = novedad.producto;
-                    document.getElementById('cantidad').value = novedad.cantidad;
-                    document.getElementById('operarios').value = novedad.operarios;
-                    document.getElementById('comentarios').value = novedad.comentarios;
-                } else {
-                    document.getElementById('modal-title').textContent = 'Nueva Novedad';
-                    document.getElementById('fecha').valueAsDate = new Date();
-                }
-                openModal(novedadModal);
-            };
+            const totalKgPellets = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Pellets').reduce((sum, n) => sum + n.kgNetos, 0);
+            const totalKgMolido = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+            const molidoProduced = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+            const molidoDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+            const molidoStock = molidoProduced - molidoDelivered;
 
-            const openConfirmModal = () => openModal(confirmModal);
-            const closeConfirmModal = () => closeModal(confirmModal);
 
-            const openPasswordModal = (actionType) => {
-                passwordInput.value = '';
-                passwordInput.dataset.action = actionType;
-                openModal(passwordModal);
-            };
-            const closePasswordModal = () => closeModal(passwordModal);
+            document.getElementById('kpi-total-kg').textContent = formatNumber(totalKg);
+            document.getElementById('kpi-total-value').textContent = formatCurrency(totalValue);
+            document.getElementById('kpi-material-in').textContent = formatNumber(materialIn);
+            document.getElementById('kpi-pending-payment').textContent = formatCurrency(pendingPayment);
             
-            document.getElementById('message-ok-btn').addEventListener('click', () => closeModal(messageModal));
+            document.getElementById('kpi-bags-produced').textContent = formatNumber(bagsProduced.toFixed(2));
+            document.getElementById('kpi-bags-delivered').textContent = formatNumber(bagsDelivered.toFixed(2));
+            document.getElementById('kpi-stock-bags').textContent = formatNumber(stockBags.toFixed(2));
 
+            document.getElementById('kpi-stock-molido').textContent = formatNumber(molidoStock.toFixed(2));
+            document.getElementById('kpi-pellets-kg').textContent = formatNumber(totalKgPellets);
+            document.getElementById('kpi-molido-kg').textContent = formatNumber(totalKgMolido);
+            document.getElementById('kpi-total-value-produced').textContent = formatCurrency(totalValue);
+        };
 
-            const updateProductoOptions = () => {
-                const selectedTipo = tipoSelect.value;
-                const productos = options.tipo[selectedTipo] || [];
-                productoSelect.innerHTML = productos.map(p => `<option value="${p}">${p}</option>`).join('');
-            };
+        const renderCharts = (data) => {
+            const processedData = data.map(calculateFields).filter(n => n.tipo.includes('Producción'));
+            
+            const productionByProduct = processedData.reduce((acc, n) => {
+                acc[n.producto] = (acc[n.producto] || 0) + n.kgNetos;
+                return acc;
+            }, {});
 
-            Object.keys(options.tipo).forEach(tipo => {
-                tipoSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+            const valueByProduct = processedData.reduce((acc, n) => {
+                acc[n.producto] = (acc[n.producto] || 0) + n.valor;
+                return acc;
+            }, {});
+
+            const chartColors = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#d946ef', '#f43f5e'];
+
+            const prodCtx = document.getElementById('productionByProductChart').getContext('2d');
+            if (productionByProductChart) productionByProductChart.destroy();
+            productionByProductChart = new Chart(prodCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(productionByProduct),
+                    datasets: [{
+                        label: 'Producción (KG)',
+                        data: Object.values(productionByProduct),
+                        backgroundColor: chartColors,
+                        borderColor: chartColors.map(c => c + 'B3'),
+                        borderWidth: 1
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
             });
-            updateProductoOptions();
 
-            tipoSelect.addEventListener('change', updateProductoOptions);
-            document.getElementById('add-btn').addEventListener('click', () => openNovedadModal());
-            document.getElementById('novedad-cancel-btn').addEventListener('click', () => closeModal(novedadModal));
+            const valueCtx = document.getElementById('valueByProductChart').getContext('2d');
+            if (valueByProductChart) valueByProductChart.destroy();
+            valueByProductChart = new Chart(valueCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(valueByProduct),
+                    datasets: [{
+                        data: Object.values(valueByProduct),
+                        backgroundColor: chartColors,
+                        hoverOffset: 4
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        };
+
+        const populateMonthSelect = () => {
+            const monthSelect = document.getElementById('month-select');
+            monthSelect.innerHTML = '';
+            // Use the full 'novedades' array, not the filtered one, to get all available months
+            const availableMonths = [...new Set(novedades.map(n => n.fecha.slice(0, 7)))].sort().reverse();
+            availableMonths.forEach(month => {
+                const date = new Date(`${month}-01T00:00:00`);
+                const option = document.createElement('option');
+                option.value = month;
+                option.textContent = `${getMonthName(date.getMonth())} ${date.getFullYear()}`;
+                monthSelect.appendChild(option);
+            });
+            // Ensure the selected month is valid, default to current if not found
+            if (!availableMonths.includes(selectedMonth)) {
+                selectedMonth = new Date().toISOString().slice(0, 7);
+            }
+            monthSelect.value = selectedMonth;
+        };
+
+        const filterData = () => {
+            const now = new Date();
+            let filteredNovedades = novedades;
+
+            if (currentFilter === 'week') {
+                const filterDate = new Date(now);
+                filterDate.setDate(now.getDate() - 7);
+                filteredNovedades = novedades.filter(n => new Date(n.fecha) >= filterDate);
+            } else if (currentFilter === 'month') {
+                const filterDate = new Date(now.getFullYear(), now.getMonth(), 1);
+                filteredNovedades = novedades.filter(n => new Date(n.fecha) >= filterDate);
+            } else if (currentFilter === 'month-specific') {
+                filteredNovedades = novedades.filter(n => n.fecha.startsWith(selectedMonth));
+            }
+            // 'all' filter uses the unfiltered 'novedades' directly
+
+            return filteredNovedades;
+        };
+        
+        const refreshUI = () => {
+            const filtered = filterData();
+            renderNovedadesTable(filtered);
+            renderKPIs(novedades); // KPIs use all data
+            renderCharts(filtered); // Charts use filtered data
+            renderPriceTable();
+            renderAuditTable();
+            document.getElementById('bolsa-peso').value = bolsaPeso;
+            populateMonthSelect(); // Re-populate month select to reflect new data
+        };
+
+        const novedadModal = document.getElementById('novedad-modal');
+        const novedadForm = document.getElementById('novedad-form');
+        const tipoSelect = document.getElementById('tipo');
+        const productoSelect = document.getElementById('producto');
+        const confirmModal = document.getElementById('confirm-modal');
+        const passwordModal = document.getElementById('password-modal');
+        const passwordInput = document.getElementById('password-input');
+        const messageModal = document.getElementById('message-modal');
+        const loadingOverlay = document.getElementById('loading-overlay');
+
+        const showLoading = () => loadingOverlay.classList.remove('hidden');
+        const hideLoading = () => loadingOverlay.classList.add('hidden');
+
+
+        const openModal = (modal) => {
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                modal.querySelector('.modal-content').classList.remove('-translate-y-10');
+            }, 10);
+        };
+
+        const closeModal = (modal) => {
+            modal.classList.add('opacity-0');
+            modal.querySelector('.modal-content').classList.add('-translate-y-10');
+            setTimeout(() => modal.classList.add('hidden'), 250);
+        };
+        
+        const openNovedadModal = (novedad = null) => {
+            novedadForm.reset();
+            document.getElementById('novedad-id').value = '';
+            document.getElementById('novedad-id').dataset.firestoreId = ''; // Clear firestoreId
+            if (novedad) {
+                document.getElementById('modal-title').textContent = 'Editar Novedad';
+                document.getElementById('novedad-id').value = novedad.id;
+                document.getElementById('novedad-id').dataset.firestoreId = novedad.firestoreId; // Set firestoreId
+                document.getElementById('fecha').value = novedad.fecha;
+                tipoSelect.value = novedad.tipo;
+                updateProductoOptions();
+                productoSelect.value = novedad.producto;
+                document.getElementById('cantidad').value = novedad.cantidad;
+                document.getElementById('operarios').value = novedad.operarios;
+                document.getElementById('comentarios').value = novedad.comentarios;
+            } else {
+                document.getElementById('modal-title').textContent = 'Nueva Novedad';
+                document.getElementById('fecha').valueAsDate = new Date();
+            }
+            openModal(novedadModal);
+        };
+
+        const openConfirmModal = () => openModal(confirmModal);
+        const closeConfirmModal = () => closeModal(confirmModal);
+
+        const openPasswordModal = (actionType) => {
+            passwordInput.value = '';
+            passwordInput.dataset.action = actionType;
+            openModal(passwordModal);
+        };
+        const closePasswordModal = () => closeModal(passwordModal);
+        
+        document.getElementById('message-ok-btn').addEventListener('click', () => closeModal(messageModal));
+
+
+        const updateProductoOptions = () => {
+            const selectedTipo = tipoSelect.value;
+            const productos = options.tipo[selectedTipo] || [];
+            productoSelect.innerHTML = productos.map(p => `<option value="${p}">${p}</option>`).join('');
+        };
+
+        Object.keys(options.tipo).forEach(tipo => {
+            tipoSelect.innerHTML += `<option value="${tipo}">${tipo}</option>`;
+        });
+        updateProductoOptions();
+
+        tipoSelect.addEventListener('change', updateProductoOptions);
+        document.getElementById('add-btn').addEventListener('click', () => openNovedadModal());
+        document.getElementById('novedad-cancel-btn').addEventListener('click', () => closeModal(novedadModal));
+        
+        novedadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('novedad-id').value;
+            const firestoreId = document.getElementById('novedad-id').dataset.firestoreId;
+            const oldNovedad = firestoreId ? novedades.find(n => n.firestoreId === firestoreId) : null;
             
-            novedadForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const id = document.getElementById('novedad-id').value;
-                const oldNovedad = id ? novedades.find(n => n.id === parseInt(id)) : null;
-                const newNovedad = {
-                    id: id ? parseInt(id) : Date.now(),
-                    fecha: document.getElementById('fecha').value,
-                    tipo: tipoSelect.value,
-                    producto: productoSelect.value,
-                    cantidad: parseFloat(document.getElementById('cantidad').value),
-                    operarios: parseInt(document.getElementById('operarios').value),
-                    comentarios: document.getElementById('comentarios').value,
-                };
+            const newNovedad = {
+                id: id ? parseInt(id) : Date.now(),
+                fecha: document.getElementById('fecha').value,
+                tipo: tipoSelect.value,
+                producto: productoSelect.value,
+                cantidad: parseFloat(document.getElementById('cantidad').value),
+                operarios: parseInt(document.getElementById('operarios').value),
+                comentarios: document.getElementById('comentarios').value,
+            };
 
-                if (id) {
-                    novedades = novedades.map(n => n.id === newNovedad.id ? newNovedad : n);
-                    logAction('edit', { old: oldNovedad, new: newNovedad });
+            showLoading();
+            try {
+                if (firestoreId) {
+                    await saveNovedadToFirestore({ ...newNovedad, firestoreId });
+                    logActionToFirestore('edit', { old: oldNovedad, new: newNovedad });
                 } else {
-                    novedades.push(newNovedad);
-                    logAction('new', newNovedad);
+                    await saveNovedadToFirestore(newNovedad);
+                    logActionToFirestore('new', newNovedad);
                 }
-                saveNovedades();
-                refreshUI();
+            } catch (error) {
+                console.error("Error al guardar novedad en Firestore:", error);
+                showMessage('Error', 'Hubo un error al guardar la novedad. Inténtalo de nuevo.');
+            } finally {
+                hideLoading();
                 closeModal(novedadModal);
-            });
+            }
+        });
 
-            document.getElementById('novedades-table-body').addEventListener('click', (e) => {
-                const target = e.target;
-                if (target.classList.contains('edit-btn')) {
-                    const id = parseInt(target.dataset.id);
-                    const novedadToEdit = novedades.find(n => n.id === id);
-                    openNovedadModal(novedadToEdit);
-                }
-                if (target.classList.contains('delete-btn')) {
-                    deleteId = parseInt(target.dataset.id);
-                    deleteType = 'novedad';
-                    openConfirmModal();
-                }
-            });
+        document.getElementById('novedades-table-body').addEventListener('click', (e) => {
+            const target = e.target;
+            if (target.classList.contains('edit-btn')) {
+                const id = parseInt(target.dataset.id);
+                const firestoreId = target.dataset.firestoreId;
+                const novedadToEdit = novedades.find(n => n.firestoreId === firestoreId);
+                openNovedadModal(novedadToEdit);
+            }
+            if (target.classList.contains('delete-btn')) {
+                deleteId = parseInt(target.dataset.id);
+                deleteType = 'novedad';
+                deleteFirestoreId = target.dataset.firestoreId; // Store firestore ID for deletion
+                openConfirmModal();
+            }
+        });
 
-            document.getElementById('audit-table-body').addEventListener('click', (e) => {
-                const target = e.target;
-                if (target.classList.contains('delete-audit-btn')) {
-                    deleteId = parseInt(target.dataset.id);
-                    deleteType = 'audit-individual';
-                    openPasswordModal(deleteType);
-                }
-            });
+        document.getElementById('audit-table-body').addEventListener('click', (e) => {
+            const target = e.target;
+            if (target.classList.contains('delete-audit-btn')) {
+                deleteId = parseInt(target.dataset.id);
+                deleteType = 'audit-individual';
+                deleteFirestoreId = target.dataset.firestoreId; // Store firestore ID for deletion
+                openPasswordModal(deleteType);
+            }
+        });
 
-            document.getElementById('clear-audit-btn').addEventListener('click', () => {
-                openPasswordModal('audit-all');
-            });
+        document.getElementById('clear-audit-btn').addEventListener('click', () => {
+            openPasswordModal('audit-all');
+        });
 
+        let deleteFirestoreId = null; // To store Firestore ID for delete operations
 
-            document.getElementById('confirm-delete-btn').addEventListener('click', () => {
-                if (deleteType === 'novedad') {
-                    if (deleteId !== null) {
-                        const deletedNovedad = novedades.find(n => n.id === deleteId);
-                        novedades = novedades.filter(n => n.id !== deleteId);
-                        saveNovedades();
-                        logAction('delete', deletedNovedad);
-                        refreshUI();
+        document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
+            if (deleteType === 'novedad') {
+                if (deleteFirestoreId !== null) {
+                    showLoading();
+                    try {
+                        const deletedNovedad = novedades.find(n => n.firestoreId === deleteFirestoreId);
+                        await deleteNovedadFromFirestore(deleteFirestoreId);
+                        logActionToFirestore('delete', deletedNovedad);
+                    } catch (error) {
+                        console.error("Error al eliminar novedad de Firestore:", error);
+                        showMessage('Error', 'Hubo un error al eliminar la novedad. Inténtalo de nuevo.');
+                    } finally {
+                        hideLoading();
                         closeConfirmModal();
                         deleteId = null;
                         deleteType = null;
+                        deleteFirestoreId = null;
                     }
                 }
-            });
+            }
+        });
 
-            document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
-                closeConfirmModal();
-                deleteId = null;
-                deleteType = null;
-            });
-            
-            passwordInput.addEventListener('keydown', (e) => {
-                if (e.key === 'Enter') {
-                    document.getElementById('password-confirm-btn').click();
-                }
-            });
+        document.getElementById('confirm-cancel-btn').addEventListener('click', () => {
+            closeConfirmModal();
+            deleteId = null;
+            deleteType = null;
+            deleteFirestoreId = null;
+        });
+        
+        passwordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('password-confirm-btn').click();
+            }
+        });
 
-            document.getElementById('password-confirm-btn').addEventListener('click', () => {
-                const enteredPassword = passwordInput.value;
-                const action = passwordInput.dataset.action;
-                if (enteredPassword === AUDIT_PASSWORD) {
-                    if (action === 'audit-individual' && deleteId !== null) {
-                        auditLog = auditLog.filter(log => log.id !== deleteId);
-                        saveAuditLog();
-                        refreshUI();
-                        deleteId = null;
+        document.getElementById('password-confirm-btn').addEventListener('click', async () => {
+            const enteredPassword = passwordInput.value;
+            const action = passwordInput.dataset.action;
+            if (enteredPassword === AUDIT_PASSWORD) {
+                showLoading();
+                try {
+                    if (action === 'audit-individual' && deleteFirestoreId !== null) {
+                        await deleteAuditLogFromFirestore(deleteFirestoreId);
                     } else if (action === 'audit-all') {
-                        auditLog = [];
-                        saveAuditLog();
-                        refreshUI();
+                        await clearAllAuditLogsFromFirestore();
                     }
+                } catch (error) {
+                    console.error("Error al gestionar auditoría en Firestore:", error);
+                    showMessage('Error', 'Hubo un error al gestionar el historial de auditoría. Inténtalo de nuevo.');
+                } finally {
+                    hideLoading();
                     closePasswordModal();
-                } else {
-                    showMessage('Clave Incorrecta', 'La clave ingresada no es correcta. Por favor, inténtalo de nuevo.');
+                    deleteId = null;
+                    deleteType = null;
+                    deleteFirestoreId = null;
                 }
-            });
+            } else {
+                showMessage('Clave Incorrecta', 'La clave ingresada no es correcta. Por favor, inténtalo de nuevo.');
+            }
+        });
 
-            document.getElementById('password-cancel-btn').addEventListener('click', closePasswordModal);
+        document.getElementById('password-cancel-btn').addEventListener('click', closePasswordModal);
 
-            document.getElementById('time-filters').addEventListener('click', (e) => {
-                const target = e.target;
-                if (target.tagName === 'BUTTON') {
-                    currentFilter = target.dataset.filter;
-                    document.querySelectorAll('#time-filters .filter-btn').forEach(btn => {
-                        btn.classList.remove('bg-blue-600', 'text-white');
-                        btn.classList.add('bg-gray-200', 'text-gray-700');
-                    });
-                    target.classList.add('bg-blue-600', 'text-white');
-                    target.classList.remove('bg-gray-200', 'text-gray-700');
-                    document.getElementById('month-select').classList.add('hidden');
-                    if (currentFilter === 'month-specific') {
-                        document.getElementById('month-select').classList.remove('hidden');
-                        populateMonthSelect();
-                    }
-                    refreshUI();
-                }
-            });
-
-            document.getElementById('month-select').addEventListener('change', (e) => {
-                selectedMonth = e.target.value;
-                refreshUI();
-            });
-
-
-            // CSV Import/Export Logic
-            const exportToCsv = () => {
-                const headers = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
-                const rows = novedades.map(n => {
-                    const formattedComments = `"${n.comentarios.replace(/"/g, '""')}"`;
-                    return [
-                        n.id,
-                        n.fecha,
-                        n.tipo,
-                        n.producto,
-                        n.cantidad,
-                        n.operarios,
-                        formattedComments
-                    ].join(',');
+        document.getElementById('time-filters').addEventListener('click', (e) => {
+            const target = e.target;
+            if (target.tagName === 'BUTTON') {
+                currentFilter = target.dataset.filter;
+                document.querySelectorAll('#time-filters .filter-btn').forEach(btn => {
+                    btn.classList.remove('bg-blue-600', 'text-white');
+                    btn.classList.add('bg-gray-200', 'text-gray-700');
                 });
+                target.classList.add('bg-blue-600', 'text-white');
+                target.classList.remove('bg-gray-200', 'text-gray-700');
+                document.getElementById('month-select').classList.add('hidden');
+                if (currentFilter === 'month-specific') {
+                    document.getElementById('month-select').classList.remove('hidden');
+                    populateMonthSelect();
+                }
+                refreshUI();
+            }
+        });
 
-                const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.join('\n');
-                const encodedUri = encodeURI(csvContent);
-                const link = document.createElement("a");
-                link.setAttribute("href", encodedUri);
-                link.setAttribute("download", "novedades.csv");
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-            };
+        document.getElementById('month-select').addEventListener('change', (e) => {
+            selectedMonth = e.target.value;
+            refreshUI();
+        });
 
-            const importFromCsv = (file) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const content = e.target.result;
-                    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
-                    const newNovedades = [];
-                    const importErrors = [];
-                    
-                    const expectedHeaders = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
-                    const headerLine = lines[0].toLowerCase().split(',').map(h => h.trim());
-                    const headerMap = {};
-                    headerLine.forEach((h, i) => headerMap[h] = i);
-                    
-                    // Check if headers match and get their positions
-                    const hasValidHeaders = expectedHeaders.every(h => headerMap.hasOwnProperty(h));
 
-                    if (lines.length <= 1 || !hasValidHeaders) {
-                        showMessage('Importación Fallida', 'El archivo no tiene un formato CSV válido con las columnas esperadas.');
-                        return;
-                    }
-                    
-                    for (let i = 1; i < lines.length; i++) {
-                        const line = lines[i];
-                        if (line.trim() === '') continue; // Skip empty lines
-                        try {
-                            // A more robust CSV parser
-                            let parts = [];
-                            let inQuote = false;
-                            let currentPart = '';
-                            for (let j = 0; j < line.length; j++) {
-                                const char = line[j];
-                                if (char === '"' && (j === 0 || line[j-1] === ',')) {
-                                    inQuote = !inQuote;
-                                } else if (char === ',' && !inQuote) {
-                                    parts.push(currentPart.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-                                    currentPart = '';
+        // CSV Import/Export Logic
+        const exportToCsv = () => {
+            const headers = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
+            const rows = novedades.map(n => {
+                const formattedComments = `"${(n.comentarios || '').replace(/"/g, '""')}"`;
+                return [
+                    n.id,
+                    n.fecha,
+                    n.tipo,
+                    n.producto,
+                    n.cantidad,
+                    n.operarios,
+                    formattedComments
+                ].join(',');
+            });
+
+            const csvContent = "data:text/csv;charset=utf-8," + headers.join(',') + "\n" + rows.join('\n');
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "novedades.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        };
+
+        const importFromCsv = (file) => {
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                const content = e.target.result;
+                const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+                const newNovedadesToImport = [];
+                const importErrors = [];
+                
+                const expectedHeaders = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
+                const headerLine = lines[0].toLowerCase().split(',').map(h => h.trim());
+                const headerMap = {};
+                headerLine.forEach((h, i) => headerMap[h] = i);
+                
+                const hasValidHeaders = expectedHeaders.every(h => headerMap.hasOwnProperty(h));
+
+                if (lines.length <= 1 || !hasValidHeaders) {
+                    showMessage('Importación Fallida', 'El archivo no tiene un formato CSV válido con las columnas esperadas.');
+                    return;
+                }
+                
+                showLoading();
+                for (let i = 1; i < lines.length; i++) {
+                    const line = lines[i];
+                    if (line.trim() === '') continue;
+                    try {
+                        let parts = [];
+                        let inQuote = false;
+                        let currentPart = '';
+                        for (let j = 0; j < line.length; j++) {
+                            const char = line[j];
+                            if (char === '"') {
+                                if (j > 0 && line[j-1] === '"' && inQuote) { // Escaped quote ""
+                                    currentPart += '"';
                                 } else {
-                                    currentPart += char;
+                                    inQuote = !inQuote;
                                 }
+                            } else if (char === ',' && !inQuote) {
+                                parts.push(currentPart.trim());
+                                currentPart = '';
+                            } else {
+                                currentPart += char;
                             }
-                            parts.push(currentPart.trim().replace(/^"|"$/g, '').replace(/""/g, '"'));
-                            
-                            if (parts.length !== expectedHeaders.length) {
-                                throw new Error(`número de columnas incorrecto. Se encontraron ${parts.length} de ${expectedHeaders.length}.`);
-                            }
-
-                            const novedad = {
-                                id: parseInt(parts[headerMap.id]) || Date.now() + i, 
-                                fecha: parts[headerMap.fecha],
-                                tipo: parts[headerMap.tipo],
-                                producto: parts[headerMap.producto],
-                                cantidad: parseFloat(parts[headerMap.cantidad]),
-                                operarios: parseInt(parts[headerMap.operarios]),
-                                comentarios: parts[headerMap.comentarios] || '',
-                            };
-
-                            if (isNaN(novedad.cantidad) || isNaN(novedad.operarios)) {
-                                throw new Error('valores de cantidad u operarios no válidos.');
-                            }
-                            
-                            if (!novedad.fecha || !novedad.tipo || !novedad.producto) {
-                                throw new Error('faltan datos clave (fecha, tipo o producto).');
-                            }
-
-                            newNovedades.push(novedad);
-                        } catch (error) {
-                            importErrors.push(`Línea ${i + 1}: ${error.message}`);
-                            console.error(`Error en la línea ${i + 1}: ${error.message}`);
                         }
-                    }
+                        parts.push(currentPart.trim());
+                        
+                        // Trim all parts and replace escaped quotes
+                        parts = parts.map(p => p.replace(/^"|"$/g, '').replace(/""/g, '"'));
 
-                    if (newNovedades.length > 0) {
-                        novedades = [...novedades, ...newNovedades];
-                        saveNovedades();
-                        refreshUI();
-                        let message = `Se han importado ${newNovedades.length} de ${lines.length - 1 - importErrors.length} registros.`;
+                        if (parts.length !== expectedHeaders.length) {
+                            throw new Error(`número de columnas incorrecto. Se encontraron ${parts.length} de ${expectedHeaders.length}.`);
+                        }
+
+                        const novedad = {
+                            id: parseInt(parts[headerMap.id]) || Date.now() + i, 
+                            fecha: parts[headerMap.fecha],
+                            tipo: parts[headerMap.tipo],
+                            producto: parts[headerMap.producto],
+                            cantidad: parseFloat(parts[headerMap.cantidad]),
+                            operarios: parseInt(parts[headerMap.operarios]),
+                            comentarios: parts[headerMap.comentarios] || '',
+                        };
+
+                        if (isNaN(novedad.cantidad) || isNaN(novedad.operarios)) {
+                            throw new Error('valores de cantidad u operarios no válidos.');
+                        }
+                        
+                        if (!novedad.fecha || !novedad.tipo || !novedad.producto) {
+                            throw new Error('faltan datos clave (fecha, tipo o producto).');
+                        }
+
+                        newNovedadesToImport.push(novedad);
+                    } catch (error) {
+                        importErrors.push(`Línea ${i + 1}: ${error.message}`);
+                        console.error(`Error en la línea ${i + 1}: ${error.message}`);
+                    }
+                }
+
+                if (newNovedadesToImport.length > 0) {
+                    const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
+                    const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
+                    try {
+                        await Promise.all(addPromises);
+                        let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
                         if (importErrors.length > 0) {
                             message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
                         }
                         showMessage('Importación Exitosa', message);
-                    } else {
-                         showMessage('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
+                    } catch (error) {
+                        console.error("Error al importar novedades a Firestore:", error);
+                        showMessage('Error de Importación', 'Hubo un error al guardar los registros en la base de datos.');
+                    } finally {
+                        hideLoading();
                     }
-                };
-                reader.readAsText(file);
-            };
-
-            document.getElementById('export-btn').addEventListener('click', exportToCsv);
-            document.getElementById('refresh-btn').addEventListener('click', () => {
-                refreshUI();
-            });
-            document.getElementById('import-btn').addEventListener('click', () => {
-                document.getElementById('csv-file').click();
-            });
-            document.getElementById('csv-file').addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (file) importFromCsv(file);
-            });
-
-            // Prices Maintenance Logic
-            const priceModal = document.getElementById('price-modal');
-            const priceForm = document.getElementById('price-form');
-
-            const openPriceModal = (product) => {
-                const config = productConfig[product];
-                document.getElementById('price-product-name').value = product;
-                document.getElementById('price-kg-factor').value = config.kgFactor;
-                document.getElementById('price-price-per-kg').value = config.pricePerKg;
-                openModal(priceModal);
-            };
-
-            const closePriceModal = () => closeModal(priceModal);
-
-            document.getElementById('prices-table-body').addEventListener('click', (e) => {
-                if (e.target.classList.contains('edit-price-btn')) {
-                    const product = e.target.dataset.product;
-                    openPriceModal(product);
+                } else {
+                    hideLoading();
+                    showMessage('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
                 }
-            });
+            };
+            reader.readAsText(file);
+        };
 
-            document.getElementById('price-cancel-btn').addEventListener('click', closePriceModal);
+        document.getElementById('export-btn').addEventListener('click', exportToCsv);
+        document.getElementById('refresh-btn').addEventListener('click', () => {
+            // refreshUI is now driven by Firestore snapshots
+            // Forcing a refresh can be done by re-fetching all data,
+            // but since onSnapshot is active, simply displaying will do.
+            // If there's no actual data change, onSnapshot won't re-render.
+            // A "refresh" button is mostly for user reassurance in a real-time system.
+            // We can re-apply filters and re-render.
+            refreshUI(); 
+            showMessage('Dashboard Actualizado', 'El panel de control ha sido refrescado.');
+        });
+        document.getElementById('import-btn').addEventListener('click', () => {
+            document.getElementById('csv-file').click();
+        });
+        document.getElementById('csv-file').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) importFromCsv(file);
+        });
 
-            priceForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const product = document.getElementById('price-product-name').value;
-                const kgFactor = parseFloat(document.getElementById('price-kg-factor').value);
-                const pricePerKg = parseFloat(document.getElementById('price-price-per-kg').value);
-                
-                if (!isNaN(kgFactor) && !isNaN(pricePerKg)) {
+        // Prices Maintenance Logic
+        const priceModal = document.getElementById('price-modal');
+        const priceForm = document.getElementById('price-form');
+
+        const openPriceModal = (product) => {
+            const config = productConfig[product] || { kgFactor: 0, pricePerKg: 0 };
+            document.getElementById('price-product-name').value = product;
+            document.getElementById('price-kg-factor').value = config.kgFactor;
+            document.getElementById('price-price-per-kg').value = config.pricePerKg;
+            openModal(priceModal);
+        };
+
+        const closePriceModal = () => closeModal(priceModal);
+
+        document.getElementById('prices-table-body').addEventListener('click', (e) => {
+            if (e.target.classList.contains('edit-price-btn')) {
+                const product = e.target.dataset.product;
+                openPriceModal(product);
+            }
+        });
+
+        document.getElementById('price-cancel-btn').addEventListener('click', closePriceModal);
+
+        priceForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const product = document.getElementById('price-product-name').value;
+            const kgFactor = parseFloat(document.getElementById('price-kg-factor').value);
+            const pricePerKg = parseFloat(document.getElementById('price-price-per-kg').value);
+            
+            if (!isNaN(kgFactor) && !isNaN(pricePerKg)) {
+                showLoading();
+                try {
                     productConfig[product] = { kgFactor, pricePerKg };
-                    saveProductConfig();
-                    refreshUI();
+                    await saveProductConfigToFirestore();
+                } catch (error) {
+                    console.error("Error al guardar configuración de producto en Firestore:", error);
+                    showMessage('Error', 'Hubo un error al guardar la configuración del producto. Inténtalo de nuevo.');
+                } finally {
+                    hideLoading();
                     closePriceModal();
                 }
-            });
+            }
+        });
 
-            // Bag Peso Logic
-            const bolsaPesoInput = document.getElementById('bolsa-peso');
-            const saveBolsaBtn = document.getElementById('save-bolsa-btn');
-            
-            bolsaPesoInput.value = bolsaPeso;
+        // Bag Peso Logic
+        const bolsaPesoInput = document.getElementById('bolsa-peso');
+        const saveBolsaBtn = document.getElementById('save-bolsa-btn');
+        
+        bolsaPesoInput.value = bolsaPeso;
 
-            saveBolsaBtn.addEventListener('click', () => {
-                const newPeso = parseFloat(bolsaPesoInput.value);
-                if (!isNaN(newPeso) && newPeso > 0) {
+        saveBolsaBtn.addEventListener('click', async () => {
+            const newPeso = parseFloat(bolsaPesoInput.value);
+            if (!isNaN(newPeso) && newPeso > 0) {
+                showLoading();
+                try {
                     bolsaPeso = newPeso;
-                    saveBolsaPeso();
-                    refreshUI();
-                } else {
-                    showMessage('Valor Inválido', 'Por favor, ingresa un valor válido para el peso de la bolsa.');
+                    await saveProductConfigToFirestore(); // Update bolsaPeso via the same config doc
+                } catch (error) {
+                    console.error("Error al guardar peso de bolsa en Firestore:", error);
+                    showMessage('Error', 'Hubo un error al guardar el peso de la bolsa. Inténtalo de nuevo.');
+                } finally {
+                    hideLoading();
                 }
+            } else {
+                showMessage('Valor Inválido', 'Por favor, ingresa un valor válido para el peso de la bolsa.');
+            }
+        });
+
+        // Navigation Logic
+        const dashboardSection = document.getElementById('dashboard-section');
+        const pricesSection = document.getElementById('prices-section');
+        const navDashboardBtn = document.getElementById('nav-dashboard');
+        const navPricesBtn = document.getElementById('nav-prices');
+        const headerSubtitle = document.getElementById('header-subtitle');
+        const addBtn = document.getElementById('add-btn');
+
+        const showSection = (sectionId) => {
+            dashboardSection.classList.add('hidden');
+            pricesSection.classList.add('hidden');
+            document.getElementById(sectionId).classList.remove('hidden');
+
+            navDashboardBtn.classList.remove('bg-blue-600', 'text-white');
+            navDashboardBtn.classList.add('bg-gray-200', 'text-gray-700');
+            navPricesBtn.classList.remove('bg-blue-600', 'text-white');
+            navPricesBtn.classList.add('bg-gray-200', 'text-gray-700');
+            
+            if (sectionId === 'dashboard-section') {
+                navDashboardBtn.classList.add('bg-blue-600', 'text-white');
+                headerSubtitle.textContent = 'Visualiza y gestiona las novedades diarias de materiales y Producción.';
+                addBtn.classList.remove('hidden');
+            } else {
+                navPricesBtn.classList.add('bg-blue-600', 'text-white');
+                headerSubtitle.textContent = 'Actualiza los factores de conversión y precios de los productos, y configura notificaciones.';
+                addBtn.classList.add('hidden');
+            }
+        };
+        
+        navDashboardBtn.addEventListener('click', () => showSection('dashboard-section'));
+        navPricesBtn.addEventListener('click', () => showSection('prices-section'));
+
+        // --- Firebase Data Listeners ---
+        const setupFirestoreListeners = () => {
+            if (!window.db || !window.userId) {
+                console.warn("Firestore or userId not available yet for listeners setup.");
+                return;
+            }
+
+            const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
+            onSnapshot(query(novedadesColRef), (snapshot) => {
+                const fetchedNovedades = [];
+                snapshot.forEach(doc => {
+                    fetchedNovedades.push({ ...doc.data(), firestoreId: doc.id });
+                });
+                novedades = fetchedNovedades;
+                refreshUI();
+            }, (error) => {
+                console.error("Error fetching novedades:", error);
+                showMessage('Error de Sincronización', 'No se pudieron cargar las novedades. Comprueba tu conexión a Internet.');
             });
 
-            // Navigation Logic
-            const dashboardSection = document.getElementById('dashboard-section');
-            const pricesSection = document.getElementById('prices-section');
-            const navDashboardBtn = document.getElementById('nav-dashboard');
-            const navPricesBtn = document.getElementById('nav-prices');
-            const headerSubtitle = document.getElementById('header-subtitle');
-            const addBtn = document.getElementById('add-btn');
-
-            const showSection = (sectionId) => {
-                dashboardSection.classList.add('hidden');
-                pricesSection.classList.add('hidden');
-                document.getElementById(sectionId).classList.remove('hidden');
-
-                navDashboardBtn.classList.remove('bg-blue-600', 'text-white');
-                navDashboardBtn.classList.add('bg-gray-200', 'text-gray-700');
-                navPricesBtn.classList.remove('bg-blue-600', 'text-white');
-                navPricesBtn.classList.add('bg-gray-200', 'text-gray-700');
-                
-                if (sectionId === 'dashboard-section') {
-                    navDashboardBtn.classList.add('bg-blue-600', 'text-white');
-                    headerSubtitle.textContent = 'Visualiza y gestiona las novedades diarias de materiales y Produccion.';
-                    addBtn.classList.remove('hidden');
+            const configDocRef = doc(window.db, getCollectionPath('product_config_collection'), 'settings');
+            onSnapshot(configDocRef, async (docSnapshot) => {
+                if (docSnapshot.exists()) {
+                    const data = docSnapshot.data();
+                    productConfig = data.config || {};
+                    bolsaPeso = data.bolsaPeso !== undefined ? data.bolsaPeso : 25;
                 } else {
-                    navPricesBtn.classList.add('bg-blue-600', 'text-white');
-                    headerSubtitle.textContent = 'Actualiza los factores de conversión y precios de los productos, y configura notificaciones.';
-                    addBtn.classList.add('hidden');
+                    // Initialize if not exists, for first-time users
+                    console.log("Product config not found in Firestore, initializing with defaults.");
+                    productConfig = {
+                        'Pellets': { kgFactor: 1, pricePerKg: 275 },
+                        'Molido Policarbonato': { kgFactor: 75, pricePerKg: 200 },
+                        'Bidones 12L': { kgFactor: 0.5, pricePerKg: 250 },
+                        'Bidones 20L': { kgFactor: 0.85, pricePerKg: 300 },
+                        'Tapas': { kgFactor: 1, pricePerKg: 150 },
+                        'Egreso Pellets': { kgFactor: 1, pricePerKg: 275 },
+                        'Egreso Molido Policarbonato': { kgFactor: 75, pricePerKg: 200 },
+                        'Pendiente de Cobro': { kgFactor: 0, pricePerKg: 1 },
+                        'Cobro de Pendiente': { kgFactor: 0, pricePerKg: 1 },
+                    };
+                    bolsaPeso = 25;
+                    // Persist to Firestore
+                    await saveProductConfigToFirestore(); 
                 }
-            };
-            
-            navDashboardBtn.addEventListener('click', () => showSection('dashboard-section'));
-            navPricesBtn.addEventListener('click', () => showSection('prices-section'));
+                refreshUI();
+            }, (error) => {
+                console.error("Error fetching product config:", error);
+                showMessage('Error de Sincronización', 'No se pudo cargar la configuración de productos. Comprueba tu conexión a Internet.');
+            });
 
-            // Initial UI rendering
+            const auditColRef = collection(window.db, getCollectionPath('audit_log_collection'));
+            onSnapshot(query(auditColRef), (snapshot) => {
+                const fetchedAuditLog = [];
+                snapshot.forEach(doc => {
+                    fetchedAuditLog.push({ ...doc.data(), firestoreId: doc.id });
+                });
+                auditLog = fetchedAuditLog.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                refreshUI();
+            }, (error) => {
+                console.error("Error fetching audit log:", error);
+                showMessage('Error de Sincronización', 'No se pudo cargar el historial de auditoría. Comprueba tu conexión a Internet.');
+            });
+            hideLoading(); // Hide loading overlay once all initial data is loaded
+        };
+
+        // Wait for Firebase Auth to be ready before setting up listeners
+        document.addEventListener('firebaseAuthReady', () => {
+            setupFirestoreListeners();
             showSection('dashboard-section');
             populateMonthSelect();
             document.getElementById('month-select').value = selectedMonth;
-            refreshUI();
+            // The initial refreshUI will be called by the onSnapshot listeners
         });
+
+        // Show loading immediately when the script starts
+        showLoading();
     </script>
 </body>
 </html>
