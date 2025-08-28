@@ -1112,110 +1112,126 @@
         const importFromCsv = (file) => {
             const reader = new FileReader();
             reader.onload = async (e) => {
-                const content = e.target.result;
-                const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
-                const newNovedadesToImport = [];
-                const importErrors = [];
-                
-                const expectedHeaders = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
-                const headerLine = lines[0].toLowerCase().split(',').map(h => h.trim());
-                const headerMap = {};
-                headerLine.forEach((h, i) => headerMap[h] = i);
-                
-                const hasValidHeaders = expectedHeaders.every(h => headerMap.hasOwnProperty(h));
+                showLoading(); // Mostrar la capa de carga inmediatamente
 
-                if (lines.length <= 1 || !hasValidHeaders) {
-                    showLLMOutput('Importación Fallida', 'El archivo no tiene un formato CSV válido con las columnas esperadas.');
-                    return;
-                }
-                
-                showLoading();
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i];
-                    if (line.trim() === '') continue;
-                    try {
-                        const parts = [];
-                        let inQuote = false;
-                        let currentField = '';
-                        for (let j = 0; j < line.length; j++) {
-                            const char = line[j];
-                            if (char === '"') {
-                                // Handle escaped double quote "" inside a field
-                                if (j < line.length - 1 && line[j+1] === '"' && inQuote) {
-                                    currentField += '"';
-                                    j++; // Skip the next quote as it's part of the escape sequence
+                try {
+                    const content = e.target.result;
+                    const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
+                    const newNovedadesToImport = [];
+                    const importErrors = [];
+                    
+                    const expectedHeaders = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
+                    const headerLine = lines[0].toLowerCase().split(',').map(h => h.trim());
+                    const headerMap = {};
+                    expectedHeaders.forEach((h, i) => headerMap[h] = headerLine.indexOf(h)); // Map expected headers to actual column indices
+                    
+                    const hasValidHeaders = expectedHeaders.every(h => headerMap[h] !== -1);
+
+                    if (lines.length <= 1 || !hasValidHeaders) {
+                        hideLoading(); // Ocultar antes de mostrar el mensaje
+                        showLLMOutput('Importación Fallida', 'El archivo no tiene un formato CSV válido o le faltan las columnas esperadas (id, fecha, tipo, producto, cantidad, operarios, comentarios).');
+                        return; 
+                    }
+                    
+                    for (let i = 1; i < lines.length; i++) {
+                        const line = lines[i];
+                        if (line.trim() === '') continue;
+                        try {
+                            const parts = [];
+                            let inQuote = false;
+                            let currentField = '';
+                            for (let j = 0; j < line.length; j++) {
+                                const char = line[j];
+                                if (char === '"') {
+                                    // Handle escaped double quote "" inside a field
+                                    if (j < line.length - 1 && line[j+1] === '"' && inQuote) {
+                                        currentField += '"';
+                                        j++; // Skip the next quote as it's part of the escape sequence
+                                    } else {
+                                        inQuote = !inQuote;
+                                    }
+                                } else if (char === ',' && !inQuote) {
+                                    parts.push(currentField);
+                                    currentField = '';
                                 } else {
-                                    inQuote = !inQuote;
+                                    currentField += char;
                                 }
-                            } else if (char === ',' && !inQuote) {
-                                parts.push(currentField);
-                                currentField = '';
-                            } else {
-                                currentField += char;
                             }
-                        }
-                        parts.push(currentField); // Add the last field
+                            parts.push(currentField); // Add the last field
 
-                        // At this point, 'parts' contains the raw, potentially quoted/escaped fields.
-                        // We need to unquote and unescape them.
-                        const cleanedParts = parts.map(p => {
-                            // If the field starts and ends with a quote, remove them and unescape internal quotes
-                            if (p.startsWith('"') && p.endsWith('"') && p.length >= 2) {
-                                return p.substring(1, p.length - 1).replace(/""/g, '"');
+                            // At this point, 'parts' contains the raw, potentially quoted/escaped fields.
+                            // We need to unquote and unescape them.
+                            const cleanedParts = parts.map(p => {
+                                // If the field starts and ends with a quote, remove them and unescape internal quotes
+                                if (p.startsWith('"') && p.endsWith('"') && p.length >= 2) {
+                                    return p.substring(1, p.length - 1).replace(/""/g, '"');
+                                }
+                                return p;
+                            }).map(p => p.trim()); // Trim whitespace from each part
+
+                            // Ensure all expected headers are present in the CSV and use their mapped indices
+                            const idIndex = headerMap['id'];
+                            const fechaIndex = headerMap['fecha'];
+                            const tipoIndex = headerMap['tipo'];
+                            const productoIndex = headerMap['producto'];
+                            const cantidadIndex = headerMap['cantidad'];
+                            const operariosIndex = headerMap['operarios'];
+                            const comentariosIndex = headerMap['comentarios'];
+
+                            if (idIndex === -1 || fechaIndex === -1 || tipoIndex === -1 || productoIndex === -1 || cantidadIndex === -1 || operariosIndex === -1 || comentariosIndex === -1) {
+                                throw new Error('faltan columnas esenciales en el archivo CSV.');
                             }
-                            return p;
-                        }).map(p => p.trim()); // Trim whitespace from each part
 
-                        if (cleanedParts.length !== expectedHeaders.length) {
-                            throw new Error(`número de columnas incorrecto. Se encontraron ${cleanedParts.length} de ${expectedHeaders.length}.`);
+                            const novedad = {
+                                id: parseInt(cleanedParts[idIndex]) || Date.now() + i, 
+                                fecha: cleanedParts[fechaIndex],
+                                tipo: cleanedParts[tipoIndex],
+                                producto: cleanedParts[productoIndex],
+                                cantidad: parseFloat(cleanedParts[cantidadIndex]),
+                                operarios: parseInt(cleanedParts[operariosIndex]),
+                                comentarios: cleanedParts[comentariosIndex] || '',
+                            };
+
+                            if (isNaN(novedad.cantidad) || isNaN(novedad.operarios)) {
+                                throw new Error('valores de cantidad u operarios no válidos.');
+                            }
+                            
+                            if (!novedad.fecha || !novedad.tipo || !novedad.producto) {
+                                throw new Error('faltan datos clave (fecha, tipo o producto).');
+                            }
+
+                            newNovedadesToImport.push(novedad);
+                        } catch (error) {
+                            importErrors.push(`Línea ${i + 1}: ${error.message}`);
+                            console.error(`Error en la línea ${i + 1}: ${error.message}`);
                         }
-
-                        const novedad = {
-                            id: parseInt(cleanedParts[headerMap.id]) || Date.now() + i, 
-                            fecha: cleanedParts[headerMap.fecha],
-                            tipo: cleanedParts[headerMap.tipo],
-                            producto: cleanedParts[headerMap.producto],
-                            cantidad: parseFloat(cleanedParts[headerMap.cantidad]),
-                            operarios: parseInt(cleanedParts[headerMap.operarios]),
-                            comentarios: cleanedParts[headerMap.comentarios] || '',
-                        };
-
-                        if (isNaN(novedad.cantidad) || isNaN(novedad.operarios)) {
-                            throw new Error('valores de cantidad u operarios no válidos.');
-                        }
-                        
-                        if (!novedad.fecha || !novedad.tipo || !novedad.producto) {
-                            throw new Error('faltan datos clave (fecha, tipo o producto).');
-                        }
-
-                        newNovedadesToImport.push(novedad);
-                    } catch (error) {
-                        importErrors.push(`Línea ${i + 1}: ${error.message}`);
-                        console.error(`Error en la línea ${i + 1}: ${error.message}`);
                     }
-                }
 
-                if (newNovedadesToImport.length > 0) {
-                    const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
-                    const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
-                    try {
-                        await Promise.all(addPromises);
-                        // Explicitly refresh UI after all Firestore writes are complete
-                        refreshUI(); 
-                        let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
-                        if (importErrors.length > 0) {
-                            message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
+                    if (newNovedadesToImport.length > 0) {
+                        const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
+                        const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
+                        try {
+                            await Promise.all(addPromises);
+                            refreshUI(); 
+                            let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
+                            if (importErrors.length > 0) {
+                                message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
+                            }
+                            hideLoading(); // Ocultar antes de mostrar el mensaje
+                            showLLMOutput('Importación Exitosa', message);
+                        } catch (error) {
+                            console.error("Error al importar novedades a Firestore:", error);
+                            hideLoading(); // Ocultar antes de mostrar el mensaje
+                            showLLMOutput('Error de Importación', 'Hubo un error al guardar los registros en la base de datos.');
                         }
-                        showLLMOutput('Importación Exitosa', message);
-                    } catch (error) {
-                        console.error("Error al importar novedades a Firestore:", error);
-                        showLLMOutput('Error de Importación', 'Hubo un error al guardar los registros en la base de datos.');
-                    } finally {
-                        hideLoading();
+                    } else {
+                        hideLoading(); // Ocultar antes de mostrar el mensaje
+                        showLLMOutput('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
                     }
-                } else {
-                    hideLoading();
-                    showLLMOutput('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
+                } catch (generalError) {
+                    console.error("Error general durante la importación CSV:", generalError);
+                    hideLoading(); // Ocultar antes de mostrar el mensaje
+                    showLLMOutput('Error Crítico de Importación', `Ocurrió un error inesperado durante el procesamiento del archivo: ${generalError.message}`);
                 }
             };
             reader.readAsText(file);
