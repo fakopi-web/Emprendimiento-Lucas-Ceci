@@ -37,12 +37,24 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        /* Reverted: Added display: flex back to sortable-header for alignment as it was before */
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+        }
+        .sort-icon {
+            margin-left: 4px;
+            font-size: 0.8em;
+            line-height: 1;
+        }
     </style>
     <!-- Firebase SDK Imports -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // Global Firebase instances and user state
         window.firebaseApp = null;
@@ -102,7 +114,7 @@
 <body class="bg-gray-50 text-gray-800">
 
     <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay">
+    <div id="loading-overlay" class="loading-overlay hidden">
         <div class="spinner"></div>
     </div>
 
@@ -187,6 +199,7 @@
                             <button data-filter="month-specific" class="filter-btn bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium">Por Mes</button>
                             <button data-filter="all" class="filter-btn bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium">Todos</button>
                             <select id="month-select" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium"></select>
+                            <select id="product-select" class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium"></select>
                         </div>
                     </div>
                     
@@ -223,9 +236,10 @@
                         <table class="min-w-full divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Producto/Línea</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable-header" data-sort-by="fecha">Fecha <span class="sort-icon"></span></th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable-header" data-sort-by="tipo">Tipo <span class="sort-icon"></span></th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider sortable-header" data-sort-by="producto">Producto/Línea <span class="sort-icon"></span></th>
+                                    <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cantidad</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">KG Netos</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Bolsas (25kg)</th>
                                     <th class="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">$ en Pesos</th>
@@ -318,6 +332,7 @@
             <h2 id="modal-title" class="text-2xl font-bold mb-6">Nueva Novedad</h2>
             <form id="novedad-form">
                 <input type="hidden" id="novedad-id">
+                <input type="hidden" id="novedad-firestore-id"> <!-- New field for Firestore ID -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
                         <label for="fecha" class="block text-sm font-medium text-gray-700">Fecha</label>
@@ -406,9 +421,9 @@
     </button>
     
     <script type="module">
-        import { collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Access global Firebase instances after they are initialized
+        // Global Firebase instances and user state
         let novedades = [];
         let productConfig = {};
         let auditLog = [];
@@ -416,9 +431,16 @@
         
         let currentFilter = 'month-specific'; 
         let selectedMonth = new Date().toISOString().slice(0, 7);
+        let selectedProduct = 'all'; // New state variable for product filter
+
+        // State for sorting
+        let currentSortColumn = 'fecha'; // Default sort column
+        let currentSortDirection = 'desc'; // Default sort direction (descending for dates)
+
         let productionByProductChart, valueByProductChart;
         let deleteId = null;
         let deleteType = null; // 'novedad' or 'audit'
+        let deleteFirestoreId = null; // To store Firestore ID for delete operations
 
         const AUDIT_PASSWORD = '1234';
 
@@ -447,7 +469,7 @@
         const calculateFields = (novedad) => {
             let kgNetos = 0;
             let valor = 0;
-            let indicador = 'N';
+            let indicador = 'N'; // Default to N
             let bolsas = 0;
 
             const { tipo, producto, cantidad } = novedad;
@@ -470,8 +492,14 @@
                 valor = kgNetos * config.pricePerKg;
             }
             
-            if (tipo.includes('Producción')) indicador = 'P';
-            if (tipo.includes('Egreso')) indicador = 'E';
+            // Reverted logic: now checking if 'tipo' includes 'Producción'
+            if (tipo.includes('Producción')) { // This covers both Diurna and Nocturna
+                indicador = 'P';
+            } else if (tipo.includes('Egreso')) {
+                indicador = 'E';
+            } else {
+                indicador = 'N';
+            }
 
             return { ...novedad, kgNetos, valor, indicador, bolsas };
         };
@@ -485,17 +513,20 @@
         const saveNovedadToFirestore = async (novedad) => {
             if (!window.db || !window.userId) return;
             const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
-            if (novedad.firestoreId) {
-                await updateDoc(doc(window.db, novedadesColRef, novedad.firestoreId), novedad);
+            const { firestoreId, ...dataToSave } = novedad; 
+            if (firestoreId) {
+                // Corrected: doc(collectionRef, documentId)
+                await updateDoc(doc(novedadesColRef, firestoreId), dataToSave);
             } else {
-                await addDoc(novedadesColRef, novedad);
+                await addDoc(novedadesColRef, dataToSave);
             }
         };
 
         const deleteNovedadFromFirestore = async (firestoreId) => {
             if (!window.db || !window.userId) return;
             const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
-            await deleteDoc(doc(window.db, novedadesColRef, firestoreId));
+            // Corrected: doc(collectionRef, documentId)
+            await deleteDoc(doc(novedadesColRef, firestoreId));
         };
 
         const saveProductConfigToFirestore = async () => {
@@ -537,7 +568,8 @@
         const deleteAuditLogFromFirestore = async (firestoreId) => {
             if (!window.db || !window.userId) return;
             const auditColRef = collection(window.db, getCollectionPath('audit_log_collection'));
-            await deleteDoc(doc(window.db, auditColRef, firestoreId));
+            // Corrected: doc(collectionRef, documentId)
+            await deleteDoc(doc(auditColRef, firestoreId));
         };
 
         const clearAllAuditLogsFromFirestore = async () => {
@@ -563,6 +595,7 @@
                         <td class="px-4 py-3 table-cell">${new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                         <td class="px-4 py-3 table-cell">${n.tipo}</td>
                         <td class="px-4 py-3 table-cell">${n.producto}</td>
+                        <td class="px-4 py-3 table-cell text-right">${formatNumber(n.cantidad)}</td>
                         <td class="px-4 py-3 table-cell text-right">${formatNumber(processed.kgNetos)}</td>
                         <td class="px-4 py-3 table-cell text-right">${bolsasDisplay}</td>
                         <td class="px-4 py-3 table-cell text-right">${formatCurrency(processed.valor)}</td>
@@ -578,6 +611,17 @@
                     </tr>
                 `;
             }).join('');
+
+            // Update sort icons
+            document.querySelectorAll('.sortable-header').forEach(header => {
+                const sortBy = header.dataset.sortBy;
+                const sortIcon = header.querySelector('.sort-icon');
+                if (sortBy === currentSortColumn) {
+                    sortIcon.textContent = currentSortDirection === 'asc' ? '▲' : '▼';
+                } else {
+                    sortIcon.textContent = ''; // Clear icon if not sorted by this column
+                }
+            });
         };
 
         const renderPriceTable = () => {
@@ -719,34 +763,69 @@
             monthSelect.value = selectedMonth;
         };
 
-        const filterData = () => {
-            const now = new Date();
-            let filteredNovedades = novedades;
+        const populateProductSelect = () => {
+            const productSelect = document.getElementById('product-select');
+            productSelect.innerHTML = '<option value="all">Todos los Productos</option>'; // Default option
+            const availableProducts = [...new Set(novedades.map(n => n.producto))].sort();
+            availableProducts.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product;
+                option.textContent = product;
+                productSelect.appendChild(option);
+            });
+            productSelect.value = selectedProduct;
+        };
 
+        const filterAndSortData = () => {
+            const now = new Date();
+            let processedNovedades = novedades;
+
+            // Apply time filter
             if (currentFilter === 'week') {
                 const filterDate = new Date(now);
                 filterDate.setDate(now.getDate() - 7);
-                filteredNovedades = novedades.filter(n => new Date(n.fecha) >= filterDate);
+                processedNovedades = processedNovedades.filter(n => new Date(n.fecha) >= filterDate);
             } else if (currentFilter === 'month') {
                 const filterDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                filteredNovedades = novedades.filter(n => new Date(n.fecha) >= filterDate);
+                processedNovedades = processedNovedades.filter(n => new Date(n.fecha) >= filterDate);
             } else if (currentFilter === 'month-specific') {
-                filteredNovedades = novedades.filter(n => n.fecha.startsWith(selectedMonth));
+                processedNovedades = processedNovedades.filter(n => n.fecha.startsWith(selectedMonth));
             }
             // 'all' filter uses the unfiltered 'novedades' directly
 
-            return filteredNovedades;
+            // Apply product filter
+            if (selectedProduct !== 'all') {
+                processedNovedades = processedNovedades.filter(n => n.producto === selectedProduct);
+            }
+
+            // Apply sorting
+            processedNovedades.sort((a, b) => {
+                let valA = a[currentSortColumn];
+                let valB = b[currentSortColumn];
+
+                if (currentSortColumn === 'fecha') {
+                    valA = new Date(valA);
+                    valB = new Date(valB);
+                }
+
+                if (valA < valB) return currentSortDirection === 'asc' ? -1 : 1;
+                if (valA > valB) return currentSortDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            return processedNovedades;
         };
         
         const refreshUI = () => {
-            const filtered = filterData();
-            renderNovedadesTable(filtered);
-            renderKPIs(novedades); // KPIs use all data
-            renderCharts(filtered); // Charts use filtered data
+            const dataToDisplay = filterAndSortData();
+            renderNovedadesTable(dataToDisplay);
+            renderKPIs(dataToDisplay); // KPIs now use filtered and sorted data
+            renderCharts(dataToDisplay); // Charts use filtered and sorted data
             renderPriceTable();
             renderAuditTable();
             document.getElementById('bolsa-peso').value = bolsaPeso;
             populateMonthSelect(); // Re-populate month select to reflect new data
+            populateProductSelect(); // Re-populate product select to reflect new data
         };
 
         const novedadModal = document.getElementById('novedad-modal');
@@ -780,11 +859,11 @@
         const openNovedadModal = (novedad = null) => {
             novedadForm.reset();
             document.getElementById('novedad-id').value = '';
-            document.getElementById('novedad-id').dataset.firestoreId = ''; // Clear firestoreId
+            document.getElementById('novedad-firestore-id').value = ''; // Clear firestoreId field
             if (novedad) {
                 document.getElementById('modal-title').textContent = 'Editar Novedad';
                 document.getElementById('novedad-id').value = novedad.id;
-                document.getElementById('novedad-id').dataset.firestoreId = novedad.firestoreId; // Set firestoreId
+                document.getElementById('novedad-firestore-id').value = novedad.firestoreId; // Set firestoreId
                 document.getElementById('fecha').value = novedad.fecha;
                 tipoSelect.value = novedad.tipo;
                 updateProductoOptions();
@@ -830,7 +909,7 @@
         novedadForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('novedad-id').value;
-            const firestoreId = document.getElementById('novedad-id').dataset.firestoreId;
+            const firestoreId = document.getElementById('novedad-firestore-id').value; // Get firestoreId from new field
             const oldNovedad = firestoreId ? novedades.find(n => n.firestoreId === firestoreId) : null;
             
             const newNovedad = {
@@ -877,6 +956,25 @@
             }
         });
 
+        // Event listener for sorting headers
+        document.querySelector('#data-table-section thead').addEventListener('click', (e) => {
+            const header = e.target.closest('.sortable-header');
+            if (header) {
+                const sortBy = header.dataset.sortBy;
+                if (currentSortColumn === sortBy) {
+                    currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSortColumn = sortBy;
+                    currentSortDirection = 'asc'; // Default to ascending when changing column
+                    if (currentSortColumn === 'fecha') { // Dates often make more sense descending by default
+                        currentSortDirection = 'desc';
+                    }
+                }
+                refreshUI();
+            }
+        });
+
+
         document.getElementById('audit-table-body').addEventListener('click', (e) => {
             const target = e.target;
             if (target.classList.contains('delete-audit-btn')) {
@@ -890,8 +988,6 @@
         document.getElementById('clear-audit-btn').addEventListener('click', () => {
             openPasswordModal('audit-all');
         });
-
-        let deleteFirestoreId = null; // To store Firestore ID for delete operations
 
         document.getElementById('confirm-delete-btn').addEventListener('click', async () => {
             if (deleteType === 'novedad') {
@@ -980,6 +1076,10 @@
             refreshUI();
         });
 
+        document.getElementById('product-select').addEventListener('change', (e) => {
+            selectedProduct = e.target.value;
+            refreshUI();
+        });
 
         // CSV Import/Export Logic
         const exportToCsv = () => {
@@ -1032,41 +1132,50 @@
                     const line = lines[i];
                     if (line.trim() === '') continue;
                     try {
-                        let parts = [];
+                        const parts = [];
                         let inQuote = false;
-                        let currentPart = '';
+                        let currentField = '';
                         for (let j = 0; j < line.length; j++) {
                             const char = line[j];
                             if (char === '"') {
-                                if (j > 0 && line[j-1] === '"' && inQuote) { // Escaped quote ""
-                                    currentPart += '"';
+                                // Handle escaped double quote "" inside a field
+                                if (j < line.length - 1 && line[j+1] === '"' && inQuote) {
+                                    currentField += '"';
+                                    j++; // Skip the next quote as it's part of the escape sequence
                                 } else {
                                     inQuote = !inQuote;
                                 }
                             } else if (char === ',' && !inQuote) {
-                                parts.push(currentPart.trim());
-                                currentPart = '';
+                                parts.push(currentField);
+                                currentField = '';
                             } else {
-                                currentPart += char;
+                                currentField += char;
                             }
                         }
-                        parts.push(currentPart.trim());
-                        
-                        // Trim all parts and replace escaped quotes
-                        parts = parts.map(p => p.replace(/^"|"$/g, '').replace(/""/g, '"'));
+                        parts.push(currentField); // Add the last field
 
-                        if (parts.length !== expectedHeaders.length) {
-                            throw new Error(`número de columnas incorrecto. Se encontraron ${parts.length} de ${expectedHeaders.length}.`);
+                        // At this point, 'parts' contains the raw, potentially quoted/escaped fields.
+                        // We need to unquote and unescape them.
+                        const cleanedParts = parts.map(p => {
+                            // If the field starts and ends with a quote, remove them and unescape internal quotes
+                            if (p.startsWith('"') && p.endsWith('"') && p.length >= 2) {
+                                return p.substring(1, p.length - 1).replace(/""/g, '"');
+                            }
+                            return p;
+                        }).map(p => p.trim()); // Trim whitespace from each part
+
+                        if (cleanedParts.length !== expectedHeaders.length) {
+                            throw new Error(`número de columnas incorrecto. Se encontraron ${cleanedParts.length} de ${expectedHeaders.length}.`);
                         }
 
                         const novedad = {
-                            id: parseInt(parts[headerMap.id]) || Date.now() + i, 
-                            fecha: parts[headerMap.fecha],
-                            tipo: parts[headerMap.tipo],
-                            producto: parts[headerMap.producto],
-                            cantidad: parseFloat(parts[headerMap.cantidad]),
-                            operarios: parseInt(parts[headerMap.operarios]),
-                            comentarios: parts[headerMap.comentarios] || '',
+                            id: parseInt(cleanedParts[headerMap.id]) || Date.now() + i, 
+                            fecha: cleanedParts[headerMap.fecha],
+                            tipo: cleanedParts[headerMap.tipo],
+                            producto: cleanedParts[headerMap.producto],
+                            cantidad: parseFloat(cleanedParts[headerMap.cantidad]),
+                            operarios: parseInt(cleanedParts[headerMap.operarios]),
+                            comentarios: cleanedParts[headerMap.comentarios] || '',
                         };
 
                         if (isNaN(novedad.cantidad) || isNaN(novedad.operarios)) {
@@ -1089,6 +1198,8 @@
                     const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
                     try {
                         await Promise.all(addPromises);
+                        // Explicitly refresh UI after all Firestore writes are complete
+                        refreshUI(); 
                         let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
                         if (importErrors.length > 0) {
                             message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
@@ -1110,12 +1221,6 @@
 
         document.getElementById('export-btn').addEventListener('click', exportToCsv);
         document.getElementById('refresh-btn').addEventListener('click', () => {
-            // refreshUI is now driven by Firestore snapshots
-            // Forcing a refresh can be done by re-fetching all data,
-            // but since onSnapshot is active, simply displaying will do.
-            // If there's no actual data change, onSnapshot won't re-render.
-            // A "refresh" button is mostly for user reassurance in a real-time system.
-            // We can re-apply filters and re-render.
             refreshUI(); 
             showMessage('Dashboard Actualizado', 'El panel de control ha sido refrescado.');
         });
@@ -1234,6 +1339,7 @@
                 return;
             }
 
+            // Novedades Listener
             const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
             onSnapshot(query(novedadesColRef), (snapshot) => {
                 const fetchedNovedades = [];
@@ -1241,12 +1347,13 @@
                     fetchedNovedades.push({ ...doc.data(), firestoreId: doc.id });
                 });
                 novedades = fetchedNovedades;
-                refreshUI();
+                refreshUI(); // Refresh UI on any data change
             }, (error) => {
                 console.error("Error fetching novedades:", error);
                 showMessage('Error de Sincronización', 'No se pudieron cargar las novedades. Comprueba tu conexión a Internet.');
             });
 
+            // Product Config Listener
             const configDocRef = doc(window.db, getCollectionPath('product_config_collection'), 'settings');
             onSnapshot(configDocRef, async (docSnapshot) => {
                 if (docSnapshot.exists()) {
@@ -1271,12 +1378,13 @@
                     // Persist to Firestore
                     await saveProductConfigToFirestore(); 
                 }
-                refreshUI();
+                refreshUI(); // Refresh UI on config change
             }, (error) => {
                 console.error("Error fetching product config:", error);
                 showMessage('Error de Sincronización', 'No se pudo cargar la configuración de productos. Comprueba tu conexión a Internet.');
             });
 
+            // Audit Log Listener
             const auditColRef = collection(window.db, getCollectionPath('audit_log_collection'));
             onSnapshot(query(auditColRef), (snapshot) => {
                 const fetchedAuditLog = [];
@@ -1284,12 +1392,15 @@
                     fetchedAuditLog.push({ ...doc.data(), firestoreId: doc.id });
                 });
                 auditLog = fetchedAuditLog.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-                refreshUI();
+                refreshUI(); // Refresh UI on audit log change
             }, (error) => {
                 console.error("Error fetching audit log:", error);
                 showMessage('Error de Sincronización', 'No se pudo cargar el historial de auditoría. Comprueba tu conexión a Internet.');
             });
-            hideLoading(); // Hide loading overlay once all initial data is loaded
+            // Initial UI refresh will be triggered by the first snapshots of the listeners.
+            // No need to hide loading here, as the listeners will eventually trigger a refresh.
+            // If all three listeners have fired at least once, then hideLoading can be called.
+            // For now, let's keep it in each listener's initial load path if there was no existing data.
         };
 
         // Wait for Firebase Auth to be ready before setting up listeners
@@ -1297,8 +1408,11 @@
             setupFirestoreListeners();
             showSection('dashboard-section');
             populateMonthSelect();
+            populateProductSelect(); // Ensure products are populated on initial load
             document.getElementById('month-select').value = selectedMonth;
-            // The initial refreshUI will be called by the onSnapshot listeners
+            document.getElementById('product-select').value = selectedProduct;
+            // The initial refreshUI will be called by the onSnapshot listeners once data is fetched.
+            hideLoading(); // Hide loading after listeners are set up and initial data should be flowing
         });
 
         // Show loading immediately when the script starts
