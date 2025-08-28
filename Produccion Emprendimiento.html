@@ -1029,13 +1029,12 @@
                         const deletedNovedad = novedades.find(n => n.firestoreId === deleteFirestoreId);
                         await deleteNovedadFromFirestore(deleteFirestoreId);
                         logActionToFirestore('delete', deletedNovedad);
+                        hideLoading(); // Success: hide loading
                     } catch (error) {
                         console.error("Error al eliminar novedad de Firestore:", error);
                         hideLoading(); // Hide loading on error BEFORE message
                         showLLMOutput('Error', 'Hubo un error al eliminar la novedad. Inténtalo de nuevo.');
                     } finally {
-                        // The hideLoading in catch already ensures it's hidden.
-                        // We still need to close the confirm modal in finally.
                         closeConfirmModal();
                         deleteId = null;
                         deleteType = null;
@@ -1173,7 +1172,9 @@
                     for (let i = 1; i < lines.length; i++) {
                         if (cancelImport) { // Check for cancellation flag in each iteration
                             console.log(`Importación cancelada por el usuario en la línea ${i}.`);
-                            break; // Exit loop immediately
+                            hideLoading(); // Hide immediately upon user cancellation
+                            showLLMOutput('Importación Cancelada', `Se procesaron ${successfullyProcessedLines} registros antes de la cancelación.`);
+                            return; // Exit the onload function completely and stop further processing/committing
                         }
                         loadingMessage.textContent = `Importando línea ${i} de ${lines.length - 1}...`;
 
@@ -1251,29 +1252,20 @@
                         }
                     }
 
-                    // Now, commit only the successfully processed lines to Firestore
+                    // If we reach here, either the loop finished naturally or was broken by an error (but not user cancellation)
                     if (novedadesToCommit.length > 0) {
                         const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
                         const addPromises = novedadesToCommit.map(novedad => addDoc(novedadesColRef, novedad));
-                        await Promise.all(addPromises);
+                        await Promise.all(addPromises); // Wait for all promises to resolve
                         refreshUI(); 
 
-                        let message = '';
-                        if (cancelImport) {
-                            message = `Importación cancelada. Se cargaron ${successfullyProcessedLines} registros.`;
-                        } else {
-                            message = `Se han importado ${novedadesToCommit.length} registros exitosamente.`;
-                        }
-                        
+                        let message = `Se han importado ${novedadesToCommit.length} registros exitosamente.`;
                         if (importErrors.length > 0) {
                             message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
                         }
                         hideLoading(); // Hide before showing the final message
                         showLLMOutput('Importación Finalizada', message);
-                    } else if (cancelImport) {
-                        hideLoading(); // Hide before showing the final message
-                        showLLMOutput('Importación Cancelada', `No se cargó ningún registro antes de la cancelación.`);
-                    } else {
+                    } else { // No valid records to commit, and not canceled by user in loop
                         hideLoading(); // Hide before showing the final message
                         showLLMOutput('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
                     }
@@ -1281,10 +1273,8 @@
                     console.error("Error general durante la importación CSV:", generalError);
                     hideLoading(); // Hide before showing the final message
                     showLLMOutput('Error Crítico de Importación', `Ocurrió un error inesperado durante el procesamiento del archivo: ${generalError.message}`);
-                } finally {
-                    // This finally block is no longer strictly necessary if all paths call hideLoading() and showLLMOutput()
-                    // but it can remain as a failsafe to ensure hideLoading is always called if something unexpected happens.
                 }
+                // No finally needed here as all paths explicitly call hideLoading()
             };
             reader.readAsText(file);
         };
