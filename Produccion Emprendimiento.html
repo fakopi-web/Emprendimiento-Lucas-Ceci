@@ -1144,12 +1144,12 @@
             reader.onload = async (e) => {
                 showImportLoading('Preparando importación...'); // Mostrar la capa de carga con botón de cancelar
                 cancelImport = false; // Reset the cancel flag at the start of import
-                let successfullyLoadedLines = 0;
+                let successfullyProcessedLines = 0; // Track lines successfully processed before Firestore commit
+                let novedadesToCommit = []; // Store validated novelties here
 
                 try {
                     const content = e.target.result;
                     const lines = content.split(/\r?\n/).filter(line => line.trim() !== '');
-                    const newNovedadesToImport = [];
                     const importErrors = [];
                     
                     const expectedHeaders = ['id', 'fecha', 'tipo', 'producto', 'cantidad', 'operarios', 'comentarios'];
@@ -1166,7 +1166,8 @@
                     
                     for (let i = 1; i < lines.length; i++) {
                         if (cancelImport) { // Check for cancellation flag in each iteration
-                            break;
+                            console.log(`Importación cancelada por el usuario en la línea ${i}.`);
+                            break; // Exit loop immediately
                         }
                         loadingMessage.textContent = `Importando línea ${i} de ${lines.length - 1}...`;
 
@@ -1236,26 +1237,26 @@
                                 throw new Error('faltan datos clave (fecha, tipo o producto).');
                             }
 
-                            newNovedadesToImport.push(novedad);
-                            successfullyLoadedLines++;
-
+                            novedadesToCommit.push(novedad); // Add to a temporary list for committing
+                            successfullyProcessedLines++; // Increment count for *processed* lines
                         } catch (error) {
                             importErrors.push(`Línea ${i + 1}: ${error.message}`);
                             console.error(`Error en la línea ${i + 1}: ${error.message}`);
                         }
                     }
 
-                    if (newNovedadesToImport.length > 0) {
+                    // Now, commit only the successfully processed lines to Firestore
+                    if (novedadesToCommit.length > 0) {
                         const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
-                        const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
+                        const addPromises = novedadesToCommit.map(novedad => addDoc(novedadesColRef, novedad));
                         await Promise.all(addPromises);
                         refreshUI(); 
 
                         let message = '';
                         if (cancelImport) {
-                            message = `Importación cancelada. Se cargaron ${successfullyLoadedLines} de ${lines.length -1} registros.`;
+                            message = `Importación cancelada. Se cargaron ${successfullyProcessedLines} registros.`;
                         } else {
-                            message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
+                            message = `Se han importado ${novedadesToCommit.length} registros exitosamente.`;
                         }
                         
                         if (importErrors.length > 0) {
