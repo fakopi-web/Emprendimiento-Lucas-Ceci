@@ -954,21 +954,21 @@
                 comentarios: document.getElementById('comentarios').value,
             };
 
-            showLoading();
+            showLoading(); // Show the general loading overlay
             try {
                 if (firestoreId) {
                     await saveNovedadToFirestore({ ...newNovedad, firestoreId });
                     logActionToFirestore('edit', { old: oldNovedad, new: newNovedad });
                 } else {
-                    await saveNovedadToFirestore(newNovedad);
+                    await saveNovedadToFirestore(newNovedad); // This calls addDoc internally
                     logActionToFirestore('new', newNovedad);
                 }
+                closeModal(novedadModal); // Close the novelty input modal
+                hideLoading(); // Hide the overlay on success
             } catch (error) {
                 console.error("Error al guardar novedad en Firestore:", error);
+                hideLoading(); // IMPORTANT: Hide the overlay *before* showing the error modal
                 showLLMOutput('Error', 'Hubo un error al guardar la novedad. Inténtalo de nuevo.');
-            } finally {
-                hideLoading();
-                closeModal(novedadModal);
             }
         });
 
@@ -1031,9 +1031,11 @@
                         logActionToFirestore('delete', deletedNovedad);
                     } catch (error) {
                         console.error("Error al eliminar novedad de Firestore:", error);
+                        hideLoading(); // Hide loading on error BEFORE message
                         showLLMOutput('Error', 'Hubo un error al eliminar la novedad. Inténtalo de nuevo.');
                     } finally {
-                        hideLoading();
+                        // The hideLoading in catch already ensures it's hidden.
+                        // We still need to close the confirm modal in finally.
                         closeConfirmModal();
                         deleteId = null;
                         deleteType = null;
@@ -1067,18 +1069,21 @@
                     } else if (action === 'audit-all') {
                         await clearAllAuditLogsFromFirestore();
                     }
-                } catch (error) {
-                    console.error("Error al gestionar auditoría en Firestore:", error);
-                    showLLMOutput('Error', 'Hubo un error al gestionar el historial de auditoría. Inténtalo de nuevo.');
-                } finally {
-                    hideLoading();
+                    hideLoading(); // Hide loading after successful operation
                     closePasswordModal();
                     deleteId = null;
                     deleteType = null;
                     deleteFirestoreId = null;
+                } catch (error) {
+                    console.error("Error al gestionar auditoría en Firestore:", error);
+                    hideLoading(); // Hide loading on error BEFORE showing message
+                    showLLMOutput('Error', 'Hubo un error al gestionar el historial de auditoría. Inténtalo de nuevo.');
+                    closePasswordModal(); // Close password modal even if there's a Firestore error
                 }
             } else {
+                // Incorrect password path - no loading overlay was shown
                 showLLMOutput('Clave Incorrecta', 'La clave ingresada no es correcta. Por favor, inténtalo de nuevo.');
+                closePasswordModal(); // Close password modal
             }
         });
 
@@ -1160,6 +1165,7 @@
                     const hasValidHeaders = expectedHeaders.every(h => headerMap[h] !== -1);
 
                     if (lines.length <= 1 || !hasValidHeaders) {
+                        hideLoading(); // Hide before showing the error message
                         showLLMOutput('Importación Fallida', 'El archivo no tiene un formato CSV válido o le faltan las columnas esperadas (id, fecha, tipo, producto, cantidad, operarios, comentarios).');
                         return; 
                     }
@@ -1262,17 +1268,22 @@
                         if (importErrors.length > 0) {
                             message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
                         }
+                        hideLoading(); // Hide before showing the final message
                         showLLMOutput('Importación Finalizada', message);
                     } else if (cancelImport) {
+                        hideLoading(); // Hide before showing the final message
                         showLLMOutput('Importación Cancelada', `No se cargó ningún registro antes de la cancelación.`);
                     } else {
+                        hideLoading(); // Hide before showing the final message
                         showLLMOutput('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
                     }
                 } catch (generalError) {
                     console.error("Error general durante la importación CSV:", generalError);
+                    hideLoading(); // Hide before showing the final message
                     showLLMOutput('Error Crítico de Importación', `Ocurrió un error inesperado durante el procesamiento del archivo: ${generalError.message}`);
                 } finally {
-                    hideLoading(); // Always hide loading overlay
+                    // This finally block is no longer strictly necessary if all paths call hideLoading() and showLLMOutput()
+                    // but it can remain as a failsafe to ensure hideLoading is always called if something unexpected happens.
                 }
             };
             reader.readAsText(file);
@@ -1325,12 +1336,12 @@
                 try {
                     productConfig[product] = { kgFactor, pricePerKg };
                     await saveProductConfigToFirestore();
+                    hideLoading(); // Success: hide loading
+                    closePriceModal(); // Close modal
                 } catch (error) {
                     console.error("Error al guardar configuración de producto en Firestore:", error);
+                    hideLoading(); // Error: hide loading BEFORE message
                     showLLMOutput('Error', 'Hubo un error al guardar la configuración del producto. Inténtalo de nuevo.');
-                } finally {
-                    hideLoading();
-                    closePriceModal();
                 }
             }
         });
@@ -1348,11 +1359,11 @@
                 try {
                     bolsaPeso = newPeso;
                     await saveProductConfigToFirestore(); // Update bolsaPeso via the same config doc
+                    hideLoading(); // Success: hide loading
                 } catch (error) {
                     console.error("Error al guardar peso de bolsa en Firestore:", error);
+                    hideLoading(); // Error: hide loading BEFORE message
                     showLLMOutput('Error', 'Hubo un error al guardar el peso de la bolsa. Inténtalo de nuevo.');
-                } finally {
-                    hideLoading();
                 }
             } else {
                 showLLMOutput('Valor Inválido', 'Por favor, ingresa un valor válido para el peso de la bolsa.');
@@ -1422,7 +1433,8 @@
             `;
 
             showLoading('Generando Ideas...'); // Show generic loading for AI
-            showLLMOutput('Generando Ideas...', 'La IA de Gemini está analizando tus datos. Esto puede tomar unos segundos.'); // This is shown on top of loading, should be reversed.
+            // NOTE: Removed the initial showLLMOutput here, as it conflicts with loading overlay.
+            // The final LLM output will be shown after loading hides.
 
             const apiKey = ""; // Canvas will provide this
             const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
@@ -1440,7 +1452,7 @@
             const maxRetries = 3;
             const baseDelay = 1000; // 1 second
 
-            try { // Added try-catch for the AI call
+            try { 
                 while (retries < maxRetries) {
                     try {
                         const response = await fetch(apiUrl, {
@@ -1469,8 +1481,8 @@
                         if (retries < maxRetries) {
                             const delay = baseDelay * Math.pow(2, retries); // Exponential backoff
                             await new Promise(resolve => setTimeout(resolve, delay));
-                            // Only update message if it's the current active message (not LLM output)
-                            if (loadingOverlay.classList.contains('hidden') === false) { // Check if loading is still active
+                            // Update message only if loading is still active
+                            if (!loadingOverlay.classList.contains('hidden')) { 
                                 loadingMessage.textContent = `Error al generar ideas, reintentando en ${delay / 1000} segundos...`;
                             }
                         } else {
@@ -1482,7 +1494,7 @@
                 console.error("Error durante la llamada a la API de Gemini:", aiCallError);
                 responseText = 'Ocurrió un error al conectar con el servicio de IA. Por favor, inténtalo de nuevo más tarde.';
             } finally {
-                hideLoading(); // Hide loading after the AI call
+                hideLoading(); // Ensure loading is hidden first
                 showLLMOutput('Ideas de Mejora Sugeridas', responseText);
             }
         });
