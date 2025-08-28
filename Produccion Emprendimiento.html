@@ -1128,7 +1128,8 @@
                     const hasValidHeaders = expectedHeaders.every(h => headerMap[h] !== -1);
 
                     if (lines.length <= 1 || !hasValidHeaders) {
-                        hideLoading(); // Ocultar antes de mostrar el mensaje
+                        // Ocultar la carga antes de mostrar el mensaje de error o éxito
+                        hideLoading();
                         showLLMOutput('Importación Fallida', 'El archivo no tiene un formato CSV válido o le faltan las columnas esperadas (id, fecha, tipo, producto, cantidad, operarios, comentarios).');
                         return; 
                     }
@@ -1210,27 +1211,24 @@
                     if (newNovedadesToImport.length > 0) {
                         const novedadesColRef = collection(window.db, getCollectionPath('novedades_collection'));
                         const addPromises = newNovedadesToImport.map(novedad => addDoc(novedadesColRef, novedad));
-                        try {
-                            await Promise.all(addPromises);
-                            refreshUI(); 
-                            let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
-                            if (importErrors.length > 0) {
-                                message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
-                            }
-                            hideLoading(); // Ocultar antes de mostrar el mensaje
-                            showLLMOutput('Importación Exitosa', message);
-                        } catch (error) {
-                            console.error("Error al importar novedades a Firestore:", error);
-                            hideLoading(); // Ocultar antes de mostrar el mensaje
-                            showLLMOutput('Error de Importación', 'Hubo un error al guardar los registros en la base de datos.');
+                        await Promise.all(addPromises);
+                        refreshUI(); 
+                        let message = `Se han importado ${newNovedadesToImport.length} registros exitosamente.`;
+                        if (importErrors.length > 0) {
+                            message += `<br><br><b>Se encontraron ${importErrors.length} errores:</b><br>${importErrors.join('<br>')}`;
                         }
+                        // Ocultar la carga antes de mostrar el mensaje de error o éxito
+                        hideLoading();
+                        showLLMOutput('Importación Exitosa', message);
                     } else {
-                        hideLoading(); // Ocultar antes de mostrar el mensaje
+                        // Ocultar la carga antes de mostrar el mensaje de error o éxito
+                        hideLoading();
                         showLLMOutput('Importación Fallida', 'No se encontraron registros válidos para importar en el archivo. Asegúrate de que el formato sea correcto y los datos sean válidos.');
                     }
                 } catch (generalError) {
                     console.error("Error general durante la importación CSV:", generalError);
-                    hideLoading(); // Ocultar antes de mostrar el mensaje
+                    // Ocultar la carga antes de mostrar el mensaje de error o éxito
+                    hideLoading();
                     showLLMOutput('Error Crítico de Importación', `Ocurrió un error inesperado durante el procesamiento del archivo: ${generalError.message}`);
                 }
             };
@@ -1442,6 +1440,7 @@ ${kpiSummary}
                     }
                 }
             }
+            // Ocultar la carga antes de mostrar el mensaje de error o éxito
             hideLoading();
             showLLMOutput('Ideas de Mejora Sugeridas', responseText);
         });
