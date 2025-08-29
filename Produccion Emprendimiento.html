@@ -13,7 +13,9 @@
         @media (min-width: 768px) { .chart-container { height: 350px; } }
         .modal { transition: opacity 0.25s ease; }
         .modal-content { transition: transform 0.25s ease; }
-        .table-cell { white-space: nowrap; }
+        /* Eliminado white-space: nowrap; para permitir que el texto de las celdas se ajuste y mejorar la alineación */
+        /* .table-cell { white-space: nowrap; } */ 
+        
         /* Style for sortable headers */
         .sortable-header {
             cursor: pointer;
@@ -31,6 +33,14 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Moved getCollectionPath to the very top of the script block
+        const getCollectionPath = (collectionName) => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // Ensure window.userId is available or use a fallback
+            const currentUserId = window.userId || 'anonymous';
+            return `artifacts/${appId}/users/${currentUserId}/${collectionName}`;
+        };
+
         // Global Firebase instances and user state
         window.firebaseApp = null;
         window.db = null;
@@ -40,14 +50,12 @@
 
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-                apiKey: "AIzaSyDz9cdvYjBqna-ACZMIokDxsuQEZjzblVQ",
-   		authDomain: "paneldecontrolproduccion.firebaseapp.com",
-    		projectId: "paneldecontrolproduccion",
-    		storageBucket: "paneldecontrolproduccion.firebasestorage.app",
-    		messagingSenderId: "41548698833",
-    		appId: "1:41548698833:web:6f61581b8361a2d1f421f0",
-    		measurementId: "G-XFNV65YL1D"
-
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_AUTH_DOMAIN",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_STORAGE_BUCKET",
+            messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+            appId: "YOUR_APP_ID"
         };
 
         async function initFirebase() {
@@ -401,6 +409,14 @@
     <script type="module">
         import { collection, query, onSnapshot, addDoc, setDoc, updateDoc, deleteDoc, doc, getDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+        // Moved getCollectionPath to the very top of the script block
+        const getCollectionPath = (collectionName) => {
+            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+            // Ensure window.userId is available or use a fallback
+            const currentUserId = window.userId || 'anonymous';
+            return `artifacts/${appId}/users/${currentUserId}/${collectionName}`;
+        };
+
         // Global Firebase instances and user state
         let novedades = [];
         let productConfig = {};
@@ -454,7 +470,7 @@
             const { tipo, producto, cantidad } = novedad;
             const config = productConfig[producto] || { kgFactor: 0, pricePerKg: 0 };
             
-            if (producto.includes('Pellets') && tipo.includes('Producción')) {
+            if (tipo.toLowerCase().includes('producción')) {
                 kgNetos = cantidad;
                 bolsas = kgNetos / bolsaPeso;
             } else if (producto.includes('Egreso Pellets')) {
@@ -471,20 +487,15 @@
                 valor = kgNetos * config.pricePerKg;
             }
             
-            if (tipo.includes('Producción')) { // This covers both Diurna and Nocturna
+            if (tipo.toLowerCase().includes('producción')) {
                 indicador = 'P';
-            } else if (tipo.includes('Egreso')) {
+            } else if (tipo.toLowerCase().includes('egreso')) {
                 indicador = 'E';
             } else {
                 indicador = 'N';
             }
 
             return { ...novedad, kgNetos, valor, indicador, bolsas };
-        };
-
-        const getCollectionPath = (collectionName) => {
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            return `artifacts/${appId}/users/${window.userId}/${collectionName}`;
         };
 
         // --- Firestore Operations ---
@@ -576,19 +587,19 @@
                 const bolsasDisplay = processed.bolsas ? formatNumber(processed.bolsas.toFixed(2)) : '-';
                 return `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 table-cell">${new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                        <td class="px-4 py-3 table-cell">${n.tipo}</td>
-                        <td class="px-4 py-3 table-cell">${n.producto}</td>
-                        <td class="px-4 py-3 table-cell text-right">${formatNumber(n.cantidad)}</td>
-                        <td class="px-4 py-3 table-cell text-right">${formatNumber(processed.kgNetos)}</td>
-                        <td class="px-4 py-3 table-cell text-right">${bolsasDisplay}</td>
-                        <td class="px-4 py-3 table-cell text-right">${formatCurrency(processed.valor)}</td>
-                        <td class="px-4 py-3 table-cell text-center">
+                        <td class="px-4 py-3">${new Date(n.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
+                        <td class="px-4 py-3">${n.tipo}</td>
+                        <td class="px-4 py-3">${n.producto}</td>
+                        <td class="px-4 py-3 text-right">${formatNumber(n.cantidad)}</td>
+                        <td class="px-4 py-3 text-right">${formatNumber(processed.kgNetos)}</td>
+                        <td class="px-4 py-3 text-right">${bolsasDisplay}</td>
+                        <td class="px-4 py-3 text-right">${formatCurrency(processed.valor)}</td>
+                        <td class="px-4 py-3 text-center">
                             <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${processed.indicador === 'P' ? 'bg-green-100 text-green-800' : processed.indicador === 'E' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800'}">
                                 ${processed.indicador}
                             </span>
                         </td>
-                        <td class="px-4 py-3 table-cell text-center">
+                        <td class="px-4 py-3 text-center">
                             <button class="edit-btn text-blue-600 hover:text-blue-900" data-id="${n.id}" data-firestore-id="${n.firestoreId}">Editar</button>
                             <button class="delete-btn text-red-600 hover:text-red-900 ml-2" data-id="${n.id}" data-firestore-id="${n.firestoreId}">Eliminar</button>
                         </td>
@@ -615,10 +626,10 @@
                 const config = productConfig[p];
                 return `
                     <tr class="hover:bg-gray-50">
-                        <td class="px-4 py-3 table-cell">${p}</td>
-                        <td class="px-4 py-3 table-cell text-right">${config.kgFactor}</td>
-                        <td class="px-4 py-3 table-cell text-right">${formatCurrency(config.pricePerKg)}</td>
-                        <td class="px-4 py-3 table-cell text-center">
+                        <td class="px-4 py-3">${p}</td>
+                        <td class="px-4 py-3 text-right">${config.kgFactor}</td>
+                        <td class="px-4 py-3 text-right">${formatCurrency(config.pricePerKg)}</td>
+                        <td class="px-4 py-3 text-center">
                             <button class="edit-price-btn text-blue-600 hover:text-blue-900" data-product="${p}">Editar</button>
                         </td>
                     </tr>
@@ -630,13 +641,13 @@
             const auditTableBody = document.getElementById('audit-table-body');
             auditTableBody.innerHTML = auditLog.map(log => `
                 <tr class="hover:bg-gray-50">
-                    <td class="px-4 py-3 table-cell">${new Date(log.timestamp).toLocaleString('es-AR')}</td>
-                    <td class="px-4 py-3 table-cell">${log.type}</td>
-                    <td class="px-4 py-3 table-cell">${log.subject}</td>
-                    <td class="px-4 py-3 table-cell overflow-hidden max-w-xs">
+                    <td class="px-4 py-3">${new Date(log.timestamp).toLocaleString('es-AR')}</td>
+                    <td class="px-4 py-3">${log.type}</td>
+                    <td class="px-4 py-3">${log.subject}</td>
+                    <td class="px-4 py-3 overflow-hidden max-w-xs">
                         <pre class="text-xs p-1 bg-gray-100 rounded-md overflow-x-auto">${JSON.stringify(log.details, null, 2)}</pre>
                     </td>
-                    <td class="px-4 py-3 table-cell text-center">
+                    <td class="px-4 py-3 text-center">
                         <button class="delete-audit-btn text-red-600 hover:text-red-900" data-id="${log.id}" data-firestore-id="${log.firestoreId}">Eliminar</button>
                     </td>
                 </tr>
@@ -645,23 +656,23 @@
 
         const renderKPIs = (data) => {
             const processedData = data.map(calculateFields);
-            const totalKg = processedData.filter(n => n.tipo.includes('Producción')).reduce((sum, n) => sum + n.kgNetos, 0);
-            const totalValue = processedData.filter(n => n.tipo.includes('Producción')).reduce((sum, n) => sum + n.valor, 0);
-            const materialIn = processedData.filter(n => n.tipo.includes('Novedades')).reduce((sum, n) => sum + n.kgNetos, 0);
+            const totalKg = processedData.filter(n => n.tipo.toLowerCase().includes('producción')).reduce((sum, n) => sum + n.kgNetos, 0);
+            const totalValue = processedData.filter(n => n.tipo.toLowerCase().includes('producción')).reduce((sum, n) => sum + n.valor, 0);
+            const materialIn = processedData.filter(n => n.tipo.toLowerCase().includes('novedades')).reduce((sum, n) => sum + n.kgNetos, 0);
             const pendingPayment = processedData.reduce((sum, n) => {
                 if (n.tipo === 'Pendiente de Cobro') return sum + n.valor;
                 if (n.tipo === 'Cobro de Pendiente') return sum - n.valor;
                 return sum;
             }, 0);
             
-            const bagsProduced = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Pellets').reduce((sum, n) => sum + n.bolsas, 0);
-            const bagsDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Pellets').reduce((sum, n) => sum + (n.cantidad / bolsaPeso), 0);
+            const bagsProduced = processedData.filter(n => n.tipo.toLowerCase().includes('producción') && n.producto === 'Pellets').reduce((sum, n) => sum + n.bolsas, 0);
+            const bagsDelivered = processedData.filter(n => n.tipo.toLowerCase().includes('egreso') && n.producto === 'Egreso Pellets').reduce((sum, n) => sum + (n.cantidad / bolsaPeso), 0);
             const stockBags = bagsProduced - bagsDelivered;
             
-            const totalKgPellets = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Pellets').reduce((sum, n) => sum + n.kgNetos, 0);
-            const totalKgMolido = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
-            const molidoProduced = processedData.filter(n => n.tipo.includes('Producción') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
-            const molidoDelivered = processedData.filter(n => n.tipo.includes('Egreso') && n.producto === 'Egreso Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+            const totalKgPellets = processedData.filter(n => n.tipo.toLowerCase().includes('producción') && n.producto === 'Pellets').reduce((sum, n) => sum + n.kgNetos, 0);
+            const totalKgMolido = processedData.filter(n => n.tipo.toLowerCase().includes('producción') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+            const molidoProduced = processedData.filter(n => n.tipo.toLowerCase().includes('producción') && n.producto === 'Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
+            const molidoDelivered = processedData.filter(n => n.tipo.toLowerCase().includes('egreso') && n.producto === 'Egreso Molido Policarbonato').reduce((sum, n) => sum + n.kgNetos, 0);
             const molidoStock = molidoProduced - molidoDelivered;
 
 
@@ -681,7 +692,7 @@
         };
 
         const renderCharts = (data) => {
-            const processedData = data.map(calculateFields).filter(n => n.tipo.includes('Producción'));
+            const processedData = data.map(calculateFields).filter(n => n.tipo.toLowerCase().includes('producción'));
             
             const productionByProduct = processedData.reduce((acc, n) => {
                 acc[n.producto] = (acc[n.producto] || 0) + n.kgNetos;
@@ -896,13 +907,23 @@
             const firestoreId = document.getElementById('novedad-firestore-id').value;
             const oldNovedad = firestoreId ? novedades.find(n => n.firestoreId === firestoreId) : null;
             
+            const cantidadValue = parseFloat(document.getElementById('cantidad').value);
+            const operariosValue = parseInt(document.getElementById('operarios').value);
+
+            // Validación de campos numéricos
+            if (isNaN(cantidadValue) || isNaN(operariosValue)) {
+                closeModal(novedadModal); // Cerrar el modal de entrada inmediatamente
+                setTimeout(() => showLLMOutput('Error de Entrada', 'Por favor, asegúrate de ingresar valores numéricos válidos para Cantidad y Operarios.'), 300);
+                return; // Detener la ejecución
+            }
+
             const newNovedad = {
                 id: id ? parseInt(id) : Date.now(),
                 fecha: document.getElementById('fecha').value,
                 tipo: tipoSelect.value,
                 producto: productoSelect.value,
-                cantidad: parseFloat(document.getElementById('cantidad').value),
-                operarios: parseInt(document.getElementById('operarios').value),
+                cantidad: cantidadValue, // Usar el valor parseado
+                operarios: operariosValue, // Usar el valor parseado
                 comentarios: document.getElementById('comentarios').value,
             };
 
@@ -1162,7 +1183,7 @@
                                 id: parseInt(cleanedParts[idIndex]) || Date.now() + i, 
                                 fecha: cleanedParts[fechaIndex],
                                 tipo: cleanedParts[tipoIndex],
-                                producto: cleanedParts[productoIndex], // Corrected to use productoIndex
+                                producto: cleanedParts[productoIndex],
                                 cantidad: parseFloat(cleanedParts[cantidadIndex]),
                                 operarios: parseInt(cleanedParts[operariosIndex]),
                                 comentarios: cleanedParts[comentariosIndex] || '',
